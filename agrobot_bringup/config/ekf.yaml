@@ -1,0 +1,45 @@
+# robot_localization EKF (odom frame): wheel odometry + BNO085 game rotation vector.
+# Config vector order: [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.2
+    two_d_mode: true            # ground robot: ignore z, roll, pitch and their rates
+    publish_tf: true            # EKF owns odom -> base_link (disable it in the controller!)
+    print_diagnostics: true
+    publish_acceleration: false
+    permit_corrected_publication: false
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    # ---- wheel odometry: velocities only (pose would just be integrated twice)
+    odom0: /agrobot_base_controller/odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,    # vx
+                   false, false, false,     # vyaw
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+    odom0_nodelay: false
+
+    # ---- BNO085 game rotation vector: yaw + yaw rate
+    imu0: /imu/data_game
+    imu0_config: [false, false, false,
+                  false, false, true,      # yaw (absolute, but relative to start: see below)
+                  false, false, false,
+                  false, false, true,      # vyaw
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: true                    # first yaw becomes zero -> matches odom frame at start
+    imu0_queue_size: 20
+    imu0_nodelay: false
+    imu0_remove_gravitational_acceleration: true
+
+    # Process noise: defaults are fine to start. Tune after logging real runs
+    # (raise the vx / vyaw entries if the filter lags real motion, lower them if
+    #  the estimate is jittery).

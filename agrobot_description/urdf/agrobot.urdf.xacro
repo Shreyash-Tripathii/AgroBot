@@ -1,0 +1,191 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="agrobot">
+
+  <!-- ========================================== -->
+  <!-- Configuration Arguments                    -->
+  <!-- ========================================== -->
+  <xacro:arg name="use_ros2_control" default="true"/>
+
+  <!-- ========================================== -->
+  <!-- Physical Parameters                        -->
+  <!-- ========================================== -->
+  <!-- Chassis Dimensions -->
+  <xacro:property name="chassis_length" value="0.245"/>
+  <xacro:property name="chassis_width" value="0.205"/>
+  <xacro:property name="chassis_height" value="0.075"/>
+  <xacro:property name="chassis_mass" value="2.0"/>
+
+  <!-- Ground Clearance (Distance from ground to bottom of chassis) -->
+  <xacro:property name="ground_clearance" value="0.045"/>
+
+  <!-- Wheel Properties -->
+  <!-- 200mm wheels = 0.1m radius -->
+  <xacro:property name="wheel_radius" value="0.0325"/>
+  <xacro:property name="wheel_thickness" value="0.025"/>
+  <xacro:property name="wheel_mass" value="0.2"/>
+
+  <!-- Wheelbase (Distance between front and rear axles) -->
+  <xacro:property name="wheelbase_length" value="0.175"/>
+  <!-- Track Width (Distance between left and right wheel centers) -->
+  <xacro:property name="track_width" value="0.215"/>
+
+  <!-- Sensor Offsets (Relative to base_link) -->
+  <!-- RPLiDAR Placement -->
+  <xacro:property name="lidar_x_offset" value="0.1"/>
+  <xacro:property name="lidar_y_offset" value="0.0"/>
+  <xacro:property name="lidar_z_offset" value="${chassis_height/2 + 0.05}"/>
+
+  <!-- BNO085 IMU Placement (Strictly on chassis footprint) -->
+  <xacro:property name="imu_x_offset" value="0.0"/>
+  <xacro:property name="imu_y_offset" value="0.0"/>
+  <xacro:property name="imu_z_offset" value="${chassis_height/2 + 0.005}"/>
+
+  <!-- ========================================== -->
+  <!-- Inertial Macros                            -->
+  <!-- ========================================== -->
+  <xacro:macro name="box_inertia" params="m w d h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${(m/12)*(d*d + h*h)}" ixy="0.0" ixz="0.0"
+               iyy="${(m/12)*(w*w + h*h)}" iyz="0.0"
+               izz="${(m/12)*(w*w + d*d)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${(m/12)*(3*r*r + h*h)}" ixy="0.0" ixz="0.0"
+               iyy="${(m/12)*(3*r*r + h*h)}" iyz="0.0"
+               izz="${(m/2)*(r*r)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ========================================== -->
+  <!-- Base Links (REP-105 Compliant)             -->
+  <!-- ========================================== -->
+  <!-- Base Footprint: Projected center on the ground plane -->
+  <link name="base_footprint"/>
+
+  <!-- Base Link: The physical center of the robot -->
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius + ground_clearance}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link"/>
+
+  <!-- Chassis Link -->
+  <joint name="chassis_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="chassis_link">
+    <visual>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.5 0.5 0.5 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="${chassis_mass}" w="${chassis_width}" d="${chassis_length}" h="${chassis_height}"/>
+  </link>
+
+  <!-- ========================================== -->
+  <!-- Wheel Macro                                -->
+  <!-- ========================================== -->
+  <xacro:macro name="wheel" params="prefix x_reflect y_reflect">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+        </geometry>
+        <material name="black">
+          <color rgba="0.1 0.1 0.1 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_thickness}"/>
+        </geometry>
+      </collision>
+      <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" h="${wheel_thickness}"/>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <!-- Calculate wheel offset from center -->
+      <origin xyz="${x_reflect * (wheelbase_length/2)} ${y_reflect * (track_width/2)} ${-ground_clearance}" rpy="${pi/2} 0 0"/>
+      <axis xyz="0 0 -1"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Instantiate 4 Wheels -->
+  <xacro:wheel prefix="front_left" x_reflect="1" y_reflect="1"/>
+  <xacro:wheel prefix="front_right" x_reflect="1" y_reflect="-1"/>
+  <xacro:wheel prefix="rear_left" x_reflect="-1" y_reflect="1"/>
+  <xacro:wheel prefix="rear_right" x_reflect="-1" y_reflect="-1"/>
+
+  <!-- ========================================== -->
+  <!-- Sensors                                    -->
+  <!-- ========================================== -->
+  <!-- RPLiDAR -->
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.04"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0.0 0.0 0.8 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="${lidar_x_offset} ${lidar_y_offset} ${lidar_z_offset}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- BNO085 IMU -->
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.02 0.01"/>
+      </geometry>
+      <material name="red">
+        <color rgba="0.8 0.0 0.0 1.0"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu_x_offset} ${imu_y_offset} ${imu_z_offset}" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- ========================================== -->
+  <!-- ros2_control Inclusion                     -->
+  <!-- ========================================== -->
+  <xacro:arg name="serial_port" default="/tmp/esp32"/>
+  <xacro:arg name="baud_rate" default="500000"/>
+
+  <xacro:if value="$(arg use_ros2_control)">
+    <xacro:include filename="$(find agrobot_description)/urdf/agrobot.ros2_control.xacro"/>
+    <xacro:agrobot_ros2_control
+      serial_port="$(arg serial_port)"
+      baud_rate="$(arg baud_rate)"/>
+  </xacro:if>
+
+</robot>

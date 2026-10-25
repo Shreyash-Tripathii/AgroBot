@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <!--
+     One wheel joint: velocity + dynamic PID gains in, velocity + position out.
+           The initial gain values are pushed to the ESP32 when the hardware activates,
+           so they should match the scheduler's "Cruising Profile".
+    -->
+    <xacro:macro name="agrobot_wheel_joint" params="name kp ki kd">
+    <joint name="${name}">
+    <command_interface name="velocity"/>
+    <command_interface name="kp">
+    <param name="initial_value">${kp}</param>
+    </command_interface>
+    <command_interface name="ki">
+    <param name="initial_value">${ki}</param>
+    </command_interface>
+    <command_interface name="kd">
+    <param name="initial_value">${kd}</param>
+    </command_interface>
+    <state_interface name="velocity"/>
+    <state_interface name="position"/>
+    </joint>
+    </xacro:macro>
+    <!--
+     Instantiate once from your main URDF:  <xacro:agrobot_ros2_control/>
+    -->
+    <xacro:macro name="agrobot_ros2_control" params="serial_port:=/tmp/esp32 baud_rate:=500000 init_kp:=2.0 init_ki:=0.5 init_kd:=0.0">
+    <ros2_control name="AgrobotSystem" type="system">
+    <hardware>
+    <plugin>agrobot_hardware/ESP32SystemInterface</plugin>
+    <param name="serial_port">${serial_port}</param>
+    <param name="baud_rate">${baud_rate}</param>
+    </hardware>
+    <xacro:agrobot_wheel_joint name="front_left_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
+    <xacro:agrobot_wheel_joint name="front_right_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
+    <xacro:agrobot_wheel_joint name="rear_left_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
+    <xacro:agrobot_wheel_joint name="rear_right_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
+    </ros2_control>
+    </xacro:macro>
+
+</robot>

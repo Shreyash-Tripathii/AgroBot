@@ -1,0 +1,28 @@
+# DualShock4 -> teleop_twist_joy, for the Jazzy `joy` node (SDL2 game-controller layout).
+# SDL layout:  axes    0 L-stick X, 1 L-stick Y, 2 R-stick X, 3 R-stick Y, 4 L2, 5 R2
+#              buttons 0 Cross, 1 Circle, 2 Square, 3 Triangle, 4 Share, 5 PS, 6 Options,
+#                      7 L3, 8 R3, 9 L1, 10 R1, 11-14 D-pad
+# VERIFY on your robot:  ros2 run joy joy_node  and  ros2 topic echo /joy
+# and move each control. If the indices differ, only edit the numbers below.
+teleop_twist_joy_node:
+  ros__parameters:
+    require_enable_button: true   # deadman: robot only moves while L1 is held
+    enable_button: 9              # L1
+    enable_turbo_button: 10       # R1
+
+    axis_linear:
+      x: 1                        # left stick up/down  -> forward/back
+    scale_linear:
+      x: 0.4                      # m/s  (placeholder, set to what the robot can do)
+    scale_linear_turbo:
+      x: 0.8
+
+    axis_angular:
+      yaw: 2                      # right stick left/right -> turn
+    scale_angular:
+      yaw: 1.0                    # rad/s (1.0 rad/s ~ 3.4 rad/s at each wheel)
+    scale_angular_turbo:
+      yaw: 2.0
+
+    publish_stamped_twist: true   # diff_drive_controller needs TwistStamped
+    frame: base_link

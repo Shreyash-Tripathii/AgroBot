@@ -1,0 +1,9 @@
+<library path="agrobot_hardware">
+  <class name="agrobot_hardware/ESP32SystemInterface"
+         type="agrobot_hardware::ESP32SystemInterface"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Custom 50Hz serial hardware interface for the Agrobot ESP32 4WD motor controller.
+    </description>
+  </class>
+</library>
