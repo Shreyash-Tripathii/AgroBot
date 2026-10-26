@@ -95,33 +95,42 @@ def make_symlink(link: str, target: str, fallback: str):
                 os.remove(tmp)
     return None, f"could not create symlink at {link} or {fallback}"
 
+def esp_link_logs(others, link, fallback):
+    """Symlink the single non-lidar port to `link` (falls back to `fallback`).
+    Returns a list of LogInfo actions."""
+    if len(others) != 1:
+        return [LogInfo(msg=(
+            f"[rplidar_autodetect] WARNING: expected exactly 1 non-lidar ttyUSB port, "
+            f"found {others}; not creating {link}"))]
+    used, warn = make_symlink(link, others[0], fallback)
+    logs = []
+    if used:
+        logs.append(LogInfo(msg=f"[rplidar_autodetect] {used} -> {others[0]}"))
+    if warn:
+        logs.append(LogInfo(msg=f"[rplidar_autodetect] WARNING: {warn}"))
+    return logs
+
 
 def launch_setup(context, *args, **kwargs):
     baud = int(LaunchConfiguration("serial_baudrate").perform(context))
     timeout = float(LaunchConfiguration("detect_timeout").perform(context))
 
-    lidar_port, others = find_rplidar(baud, timeout)
-    if lidar_port is None:
-        raise RuntimeError(
-            f"RPLidar not found on any /dev/ttyUSB* after {timeout:.0f}s "
-            f"(checked: {others or 'no ttyUSB devices'}). "
-            "Check wiring/power, `dialout` group membership, and that no other "
-            "process holds the port."
-        )
-
     esp_link = LaunchConfiguration("esp32_symlink").perform(context)
     esp_fallback = LaunchConfiguration("esp32_symlink_fallback").perform(context)
-    link_logs = []
-    if len(others) == 1:
-        used, warn = make_symlink(esp_link, others[0], esp_fallback)
-        if used:
-            link_logs.append(LogInfo(msg=f"[rplidar_autodetect] {used} -> {others[0]}"))
-        if warn:
-            link_logs.append(LogInfo(msg=f"[rplidar_autodetect] WARNING: {warn}"))
-    else:
-        link_logs.append(LogInfo(msg=(
-            f"[rplidar_autodetect] WARNING: expected exactly 1 non-lidar ttyUSB port, "
-            f"found {others}; not creating {esp_link}")))
+
+    lidar_port, others = find_rplidar(baud, timeout)
+
+    # No lidar found: don't error out. Treat the remaining port as the ESP32,
+    # link it at /tmp/esp32 (the fallback path), and skip launching the lidar node.
+    if lidar_port is None:
+        return [
+            LogInfo(msg=(
+                f"[rplidar_autodetect] WARNING: RPLidar not found on any /dev/ttyUSB* "
+                f"after {timeout:.0f}s (checked: {others or 'no ttyUSB devices'}). "
+                "Not launching sllidar_node. Check wiring/power, `dialout` group "
+                "membership, and that no other process holds the port.")),
+            *esp_link_logs(others, esp_fallback, esp_fallback),
+        ]
 
     lidar_node = Node(
         package="sllidar_ros2",
@@ -140,10 +149,9 @@ def launch_setup(context, *args, **kwargs):
     return [
         LogInfo(msg=f"[rplidar_autodetect] RPLidar found on {lidar_port}"),
         LogInfo(msg=f"[rplidar_autodetect] Remaining ttyUSB ports (ESP32 candidate): {others}"),
-        *link_logs,
+        *esp_link_logs(others, esp_link, esp_fallback),
         lidar_node,
     ]
-
 
 def generate_launch_description():
     return LaunchDescription([

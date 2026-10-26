@@ -19,8 +19,8 @@ def generate_launch_description():
 
     imu_driver = Node(
         package="agrobot_bringup",
-        executable="bno085_ekf_driver.py",
-        name="bno085_ekf_driver",
+        executable="bno085_driver.py",
+        name="bno085_driver",
         output="screen",
         parameters=[{
             "gyro_var": ParameterValue(LaunchConfiguration("gyro_var"), value_type=float),

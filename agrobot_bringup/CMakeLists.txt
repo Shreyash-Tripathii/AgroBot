@@ -23,16 +23,9 @@ install(DIRECTORY
 # Install Python nodes
 install(PROGRAMS
   scripts/yaw_heading_controller.py
-  scripts/bno085_ekf_driver.py
   scripts/gain_scheduler_node.py
-  DESTINATION lib/${PROJECT_NAME}
-)
-
-add_executable(bno085_shtp_node src/bno085_shtp_node.cpp)
-ament_target_dependencies(bno085_shtp_node rclcpp sensor_msgs)
-
-install(TARGETS
-  bno085_shtp_node
+  scripts/bno085_driver.py
+  scripts/click_goal.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

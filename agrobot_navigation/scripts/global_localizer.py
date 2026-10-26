@@ -85,9 +85,9 @@ class GlobalLocalizer(Node):
         #   0.03 rad^2   -> ~10 deg sigma
         # Tighten for precise docking, loosen if AMCL never gets below them
         # in your environment (long corridors / symmetric maps).
-        self.declare_parameter('x_cov_threshold', 0.03)
-        self.declare_parameter('y_cov_threshold', 0.03)
-        self.declare_parameter('yaw_cov_threshold', 0.03)
+        self.declare_parameter('x_cov_threshold', 0.86)
+        self.declare_parameter('y_cov_threshold', 0.36)
+        self.declare_parameter('yaw_cov_threshold', 0.09)
 
         # Require this many consecutive fresh /amcl_pose messages under the
         # thresholds before declaring success (rejects one-off lucky updates).
