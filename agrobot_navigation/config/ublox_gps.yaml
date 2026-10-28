@@ -3,7 +3,7 @@
 ublox_gps_node:
   ros__parameters:
     debug: 1
-    device: /dev/ttyAMA1           # RPi UART2 (GPIO 0/1) or UART3 (GPIO 4/5)
+    device: /dev/ttyAMA2           # RPi UART2 (GPIO 0/1) or UART3 (GPIO 4/5)
     frame_id: gps_link             # Ensure base_footprint -> gps_link is in your URDF / static TF
     uart1:
       baudrate: 9600               # Match NEO-M8N factory default (or 38400/115200 if saved in flash)

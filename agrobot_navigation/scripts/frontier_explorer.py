@@ -31,9 +31,9 @@ class FrontierExplorer(Node):
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('base_frame', 'base_footprint')
         self.declare_parameter('min_frontier_size', 8)        # cells
-        self.declare_parameter('obstacle_clearance_m', 0.30)  # meters away from walls
+        self.declare_parameter('obstacle_clearance_m', 0.10)  # meters away from walls
         self.declare_parameter('goal_timeout_s', 45.0)
-        self.declare_parameter('blacklist_radius_m', 0.50)
+        self.declare_parameter('blacklist_radius_m', 0.20)
         self.declare_parameter('max_empty_checks', 3)         # consecutive checks before done
 
         self.map_frame = self.get_parameter('map_frame').value

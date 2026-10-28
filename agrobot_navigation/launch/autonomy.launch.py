@@ -339,7 +339,7 @@ def launch_setup(context, *args, **kwargs):
                 name='ublox_gps_node',
                 output='screen',
                 parameters=[ublox_params_path],
-                remappings=[('/ublox_gps_node/fix', '/gps/fix')],
+                remappings=[('/fix', '/gps/fix')],
             ),
             # 2. Fallback static TF base_footprint -> gps_link (remove if already in URDF)
             Node(
