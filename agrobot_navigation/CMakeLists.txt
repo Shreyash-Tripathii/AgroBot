@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.19)
 project(agrobot_navigation)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -10,6 +10,14 @@ install(DIRECTORY
   maps
   launch
   DESTINATION share/${PROJECT_NAME}
+)
+
+# Automatically make scripts executable in source dir (vital for colcon --symlink-install)
+file(CHMOD
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/global_localizer.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/map_autosaver.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/frontier_explorer.py
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 )
 
 install(PROGRAMS

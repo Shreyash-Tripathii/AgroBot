@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.19)
 project(agrobot_bringup)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -13,11 +13,19 @@ find_package(controller_manager REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
-
 install(DIRECTORY
   launch
   config
   DESTINATION share/${PROJECT_NAME}
+)
+
+# Automatically make scripts executable in source dir (vital for colcon --symlink-install)
+file(CHMOD
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/yaw_heading_controller.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/gain_scheduler_node.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/bno085_driver.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/scripts/click_goal.py
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 )
 
 # Install Python nodes

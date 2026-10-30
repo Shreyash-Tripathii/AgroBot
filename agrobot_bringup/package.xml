@@ -2,18 +2,43 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>agrobot_bringup</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <version>1.0.0</version>
+  <description>Bringup launch files, controllers, and hardware startup scripts for AgroBot</description>
   <maintainer email="shreyash5600@gmail.com">shreyash-tripathi</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- Build & Core Dependencies -->
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>geographic_msgs</depend>
+  <depend>nav2_msgs</depend>
   <depend>robot_state_publisher</depend>
   <depend>ros2_control</depend>
   <depend>controller_manager</depend>
-  <depend>rclcpp</depend>
-  <depend>sensor_msgs</depend>
+
+  <!-- Execution Dependencies (Controllers, Launch, Scripts, Drivers) -->
+  <exec_depend>diff_drive_controller</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>forward_command_controller</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>teleop_twist_joy</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+  <exec_depend>mapviz</exec_depend>
+  <exec_depend>swri_transform_util</exec_depend>
+  <exec_depend>sllidar_ros2</exec_depend>
+  <exec_depend>agrobot_description</exec_depend>
+  <exec_depend>agrobot_hardware</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
