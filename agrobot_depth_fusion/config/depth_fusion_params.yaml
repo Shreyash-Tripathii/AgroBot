@@ -1,0 +1,59 @@
+depth_fusion_node:
+  ros__parameters:
+    # -------------------------------------------------------------
+    # Topic Configuration
+    # -------------------------------------------------------------
+    image_topic: "/image_raw"
+    scan_topic: "/scan"
+    pointcloud_topic: "/fusion_cloud/points"
+    camera_frame: "camera_optical_link"
+
+    # -------------------------------------------------------------
+    # Camera Intrinsics (K Matrix for 640x480 webcam)
+    # -------------------------------------------------------------
+    camera:
+      fx: 525.0
+      fy: 525.0
+      cx: 320.0
+      cy: 240.0
+
+    # -------------------------------------------------------------
+    # Extrinsics (LiDAR to Camera)
+    # Camera optical center is placed 10cm (+0.10m) directly above LiDAR
+    # -------------------------------------------------------------
+    extrinsic:
+      z_offset: 0.10
+      x_offset: 0.0
+      y_offset: 0.0
+
+    # -------------------------------------------------------------
+    # Model Configuration (Depth Anything V2 Small)
+    # -------------------------------------------------------------
+    model_encoder: "vits"       # ViT-Small backbone (24.8M parameters)
+    model_path: ""              # Path to depth_anything_v2_vits.pth (auto-downloads if empty)
+    device: "cuda"              # CUDA for RTX 3050 (fallback to cpu)
+    use_fp16: true              # FP16 precision enables 30+ FPS within 4GB VRAM
+    input_size: 518             # Divisible by 14 patch size
+
+    # -------------------------------------------------------------
+    # Depth Filtering & Point Cloud Settings
+    # -------------------------------------------------------------
+    min_depth: 0.2              # meters
+    max_depth: 12.0             # meters (matches RPLiDAR A1 range)
+    pointcloud_stride: 1        # 1 = full resolution (640x480), 2 = 2x downsampled
+
+    # -------------------------------------------------------------
+    # Scale Alignment (Sparse-to-Dense)
+    # -------------------------------------------------------------
+    alignment_method: "ransac"  # "ransac" or "median"
+    ransac_threshold: 0.15      # Inlier threshold in meters
+    ransac_iterations: 150      # RANSAC trial iterations
+    smooth_factor: 0.85         # Temporal EMA smoothing factor (0 = no update, 1 = instant)
+
+    # -------------------------------------------------------------
+    # Synchronization & Debug
+    # -------------------------------------------------------------
+    sync_slop: 0.08             # Message filter approximate sync tolerance in seconds
+    sync_queue_size: 10         # Message filter queue size
+    publish_depth_image: true   # Publishes /fusion_cloud/depth
+    publish_debug_image: true   # Publishes /fusion_cloud/debug_projection

@@ -5,6 +5,11 @@
   <!-- Configuration Arguments                    -->
   <!-- ========================================== -->
   <xacro:arg name="use_ros2_control" default="true"/>
+  <xacro:arg name="is_sim" default="false"/>
+  <xacro:arg name="use_gazebo_plugins" default="true"/>
+  <xacro:arg name="serial_port" default="/tmp/esp32"/>
+  <xacro:arg name="baud_rate" default="500000"/>
+  <xacro:arg name="imu_yaw_offset" default="3.14159"/>
 
   <!-- ========================================== -->
   <!-- Physical Parameters                        -->
@@ -29,16 +34,22 @@
   <!-- Track Width (Distance between left and right wheel centers) -->
   <xacro:property name="track_width" value="0.215"/>
 
-  <!-- Sensor Offsets (Relative to base_link) -->
-  <!-- RPLiDAR Placement -->
+  <!-- Sensor Offsets (Relative to base_footprint) -->
+  <!-- RPLiDAR Placement: perfectly situated just 5cm above the top of chassis box -->
   <xacro:property name="lidar_x_offset" value="0.1"/>
   <xacro:property name="lidar_y_offset" value="0.0"/>
-  <xacro:property name="lidar_z_offset" value="${chassis_height/2 + 0.05}"/>
+  <xacro:property name="lidar_z_offset" value="${wheel_radius + ground_clearance + chassis_height/2 + 0.05}"/>
 
-  <!-- BNO085 IMU Placement (Strictly on chassis footprint) -->
+  <!-- Optical Monocular Camera Placement: placed just above LiDAR at about 10cm -->
+  <xacro:property name="camera_x_offset" value="${lidar_x_offset}"/>
+  <xacro:property name="camera_y_offset" value="${lidar_y_offset}"/>
+  <xacro:property name="camera_z_offset" value="${lidar_z_offset + 0.10}"/>
+
+  <!-- BNO085 IMU Placement (Strictly on chassis footprint, referenced to base_footprint) -->
   <xacro:property name="imu_x_offset" value="0.0"/>
   <xacro:property name="imu_y_offset" value="0.0"/>
-  <xacro:property name="imu_z_offset" value="${chassis_height/2 + 0.005}"/>
+  <xacro:property name="imu_z_offset" value="${wheel_radius + ground_clearance + chassis_height/2 + 0.005}"/>
+  <xacro:property name="imu_yaw" value="$(arg imu_yaw_offset)"/>
 
   <!-- ========================================== -->
   <!-- Inertial Macros                            -->
@@ -137,9 +148,9 @@
   <xacro:wheel prefix="rear_right" x_reflect="-1" y_reflect="-1"/>
 
   <!-- ========================================== -->
-  <!-- Sensors                                    -->
+  <!-- Sensors (Connected directly to base_footprint) -->
   <!-- ========================================== -->
-  <!-- RPLiDAR -->
+  <!-- RPLiDAR (Static link connected directly to base_footprint, 5cm above chassis) -->
   <link name="lidar_link">
     <visual>
       <geometry>
@@ -149,15 +160,55 @@
         <color rgba="0.0 0.0 0.8 1.0"/>
       </material>
     </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.04"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertia m="0.1" r="0.03" h="0.04"/>
   </link>
 
   <joint name="lidar_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="base_footprint"/>
     <child link="lidar_link"/>
     <origin xyz="${lidar_x_offset} ${lidar_y_offset} ${lidar_z_offset}" rpy="0 0 0"/>
   </joint>
 
-  <!-- BNO085 IMU -->
+  <!-- Optical Monocular Camera (Static link connected directly to base_footprint, 10cm above LiDAR) -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.025 0.05 0.025"/>
+      </geometry>
+      <material name="dark_grey">
+        <color rgba="0.2 0.2 0.2 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.025 0.05 0.025"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="0.05" w="0.05" d="0.025" h="0.025"/>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="camera_link"/>
+    <origin xyz="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Camera Optical Frame (Standard ROS REP-103 convention: Z forward, X right, Y down) -->
+  <link name="camera_optical_link"/>
+
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_link"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- BNO085 IMU (Static link connected directly to base_footprint) -->
   <link name="imu_link">
     <visual>
       <geometry>
@@ -167,25 +218,37 @@
         <color rgba="0.8 0.0 0.0 1.0"/>
       </material>
     </visual>
+    <collision>
+      <geometry>
+        <box size="0.02 0.02 0.01"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="0.01" w="0.02" d="0.02" h="0.01"/>
   </link>
 
   <joint name="imu_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="base_footprint"/>
     <child link="imu_link"/>
-    <origin xyz="${imu_x_offset} ${imu_y_offset} ${imu_z_offset}" rpy="0 0 3.14159"/>
+    <origin xyz="${imu_x_offset} ${imu_y_offset} ${imu_z_offset}" rpy="0 0 ${imu_yaw}"/>
   </joint>
 
   <!-- ========================================== -->
   <!-- ros2_control Inclusion                     -->
   <!-- ========================================== -->
-  <xacro:arg name="serial_port" default="/tmp/esp32"/>
-  <xacro:arg name="baud_rate" default="500000"/>
-
   <xacro:if value="$(arg use_ros2_control)">
     <xacro:include filename="$(find agrobot_description)/urdf/agrobot.ros2_control.xacro"/>
     <xacro:agrobot_ros2_control
       serial_port="$(arg serial_port)"
-      baud_rate="$(arg baud_rate)"/>
+      baud_rate="$(arg baud_rate)"
+      is_sim="$(arg is_sim)"/>
+  </xacro:if>
+
+  <!-- ========================================== -->
+  <!-- Gazebo Plugins & Properties Inclusion      -->
+  <!-- ========================================== -->
+  <xacro:if value="$(arg use_gazebo_plugins)">
+    <xacro:include filename="$(find agrobot_description)/urdf/agrobot.gazebo.xacro"/>
+    <xacro:agrobot_gazebo is_sim="$(arg is_sim)"/>
   </xacro:if>
 
 </robot>

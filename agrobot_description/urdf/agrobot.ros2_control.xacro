@@ -21,15 +21,23 @@
     <state_interface name="position"/>
     </joint>
     </xacro:macro>
+
     <!--
-     Instantiate once from your main URDF:  <xacro:agrobot_ros2_control/>
+     Instantiate once from main URDF: <xacro:agrobot_ros2_control is_sim="$(arg is_sim)"/>
+     Default simulator plugin for ROS 2 Jazzy is gz_ros2_control/GazeboSimSystem (Gazebo Harmonic).
     -->
-    <xacro:macro name="agrobot_ros2_control" params="serial_port:=/tmp/esp32 baud_rate:=500000 init_kp:=2.0 init_ki:=0.5 init_kd:=0.0">
+    <xacro:macro name="agrobot_ros2_control" params="serial_port:=/tmp/esp32 baud_rate:=500000 init_kp:=2.0 init_ki:=0.5 init_kd:=0.0 is_sim:=false gazebo_plugin:=gz_ros2_control/GazeboSimSystem">
     <ros2_control name="AgrobotSystem" type="system">
     <hardware>
-    <plugin>agrobot_hardware/ESP32SystemInterface</plugin>
-    <param name="serial_port">${serial_port}</param>
-    <param name="baud_rate">${baud_rate}</param>
+      <xacro:if value="${is_sim}">
+        <!-- ROS 2 Jazzy (Gazebo Harmonic) uses gz_ros2_control/GazeboSimSystem -->
+        <plugin>${gazebo_plugin}</plugin>
+      </xacro:if>
+      <xacro:unless value="${is_sim}">
+        <plugin>agrobot_hardware/ESP32SystemInterface</plugin>
+        <param name="serial_port">${serial_port}</param>
+        <param name="baud_rate">${baud_rate}</param>
+      </xacro:unless>
     </hardware>
     <xacro:agrobot_wheel_joint name="front_left_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
     <xacro:agrobot_wheel_joint name="front_right_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>

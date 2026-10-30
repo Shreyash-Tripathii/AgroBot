@@ -1,0 +1,64 @@
+rtabmap:
+  ros__parameters:
+    # -------------------------------------------------------------
+    # Frame & Subscription Settings
+    # -------------------------------------------------------------
+    frame_id: "base_footprint"
+    map_frame_id: "map"
+    odom_frame_id: "odom"
+    publish_tf: true
+    wait_for_transform: 0.2
+
+    # Point Cloud as 3D LiDAR & IMU configuration
+    subscribe_scan_cloud: true
+    subscribe_imu: true
+    subscribe_depth: false
+    subscribe_rgb: false
+    subscribe_scan: false
+    subscribe_odom_info: false
+    approx_sync: true
+    queue_size: 10
+    qos_scan_cloud: 2
+    qos_imu: 2
+
+    # -------------------------------------------------------------
+    # Gravity & IMU Constraints (Prevents 3D Map Tilt / Pitch Drift)
+    # -------------------------------------------------------------
+    Optimizer/GravitySigma: "0.3"
+    Mem/UseOdomGravity: "true"
+    Kp/MaxFeatures: "-1"                  # Rely on IMU during rapid turns
+
+    # -------------------------------------------------------------
+    # RTAB-Map Registration & ICP Parameters (3D PointCloud SLAM)
+    # -------------------------------------------------------------
+    Reg/Strategy: "1"                     # 1 = ICP (Point-to-plane registration)
+    Reg/Force3DoF: "true"                 # Planar 2D robot constraint for stability
+    
+    Icp/VoxelSize: "0.05"                 # Downsample cloud to 5cm voxels for fast ICP
+    Icp/PointToPlane: "true"
+    Icp/PointToPlaneK: "10"
+    Icp/CorrespondenceRatio: "0.15"
+    Icp/MaxCorrespondenceDistance: "0.20"
+    Icp/MaxTranslation: "0.5"
+    Icp/MaxRotation: "0.78"
+
+    # -------------------------------------------------------------
+    # Memory & Loop Closure
+    # -------------------------------------------------------------
+    RGBD/ProximityBySpace: "true"
+    RGBD/ProximityPathMaxNeighbors: "10"
+    RGBD/ProximityAngle: "30"
+    RGBD/AngularUpdate: "0.05"            # 0.05 rad (~3 deg)
+    RGBD/LinearUpdate: "0.10"             # 10 cm
+
+    # -------------------------------------------------------------
+    # 3D & 2D Grid Map Construction
+    # -------------------------------------------------------------
+    Grid/Sensor: "0"                      # 0 = LaserScan / 3D scan_cloud
+    Grid/3D: "true"
+    Grid/CellSize: "0.05"
+    Grid/RangeMin: "0.20"
+    Grid/RangeMax: "10.0"
+    Grid/RayTracing: "true"
+    Grid/MaxObstacleHeight: "2.0"
+    Grid/MinGroundHeight: "0.02"
