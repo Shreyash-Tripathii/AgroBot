@@ -19,6 +19,13 @@
 // there is no servo feedback: the reported joint state is the host's slew-limited
 // estimate of the servo position.
 //
+// ESP32 -> host also sends a 23 B diagnostics frame at 1 Hz (header AA 56, own checksum):
+//   AA 56 | version u8 | uptime_ms u32 | watchdog_trips, rx_frames, rx_bad_checksum,
+//   rx_skipped_bytes, max_pass_us, max_pid_period_us, pid_mutex_misses (7 x u16) | fletcher16
+// version >= 1 means the firmware understands 0x03; the host sends servo frames only after
+// it has seen such a frame (old firmware would choke on them), and then only when a pulse
+// changes plus a 5 Hz keep-alive.
+//
 // The ESP32 runs a link watchdog: if no valid packet arrives for LINK_TIMEOUT_MS it
 // zeroes all motor PWM and releases every servo until the host talks to it again.
 // write() only runs while this hardware is ACTIVE, so deactivating/shutting down the
@@ -112,6 +119,28 @@ struct __attribute__((packed)) ServoTxPacket
 };
 static_assert(sizeof(ServoTxPacket) == 11, "ServoTxPacket must be exactly 11 bytes");
 
+// ---- ESP32 -> host diagnostics (AA 56) ---------------------------------------
+constexpr uint8_t kStatusHeader1 = 0x56;
+constexpr uint8_t kStatusVersionServo = 1;
+struct __attribute__((packed)) StatusPacket
+{
+  uint8_t header[2];
+  uint8_t version;
+  uint32_t uptime_ms;
+  uint16_t watchdog_trips;
+  uint16_t rx_frames;
+  uint16_t rx_bad_checksum;
+  uint16_t rx_skipped_bytes;
+  uint16_t max_pass_us;
+  uint16_t max_pid_period_us;
+  uint16_t pid_mutex_misses;
+  uint16_t checksum;
+};
+static_assert(sizeof(StatusPacket) == 23, "StatusPacket must be exactly 23 bytes");
+constexpr std::size_t kStatusPacketSize = sizeof(StatusPacket);
+constexpr std::size_t kStatusBodyOffset = 2;
+constexpr std::size_t kStatusPayloadSize = kStatusPacketSize - 4;  // after header, before checksum
+
 /// Per-servo-joint configuration, parsed from the URDF (joint params / interface limits).
 struct ServoConfig
 {
@@ -176,7 +205,10 @@ private:
   bool write_all(const uint8_t * raw, std::size_t len);
   bool send_packet(const std::array<float, kNumWheels> & velocities);  // Type 0x01
   bool send_gain_packet(std::size_t slot, const Gains & gains);        // Type 0x02
-  bool send_servo_packet();                                            // Type 0x03
+  std::array<uint16_t, kNumServos> compute_servo_pulses() const;
+  bool send_servo_packet(const std::array<uint16_t, kNumServos> & pulses);  // Type 0x03
+  void handle_status(const StatusPacket & st);
+  void log_timing_summary(SteadyClock::time_point now);
   void update_servo_setpoints(double dt);  // slew-limit command -> estimated position
   void send_zero_velocity();
 
@@ -223,6 +255,24 @@ private:
     std::size_t index{0};
   };
   std::vector<JointMap> joint_map_;
+
+  // --- ESP32 status / capability ---------------------------------------------
+  bool status_seen_{false};
+  bool esp_has_servo_{false};
+  StatusPacket last_status_{};
+  SteadyClock::time_point status_wait_start_{};
+  SteadyClock::time_point last_servo_tx_{};  // epoch => send on next write()
+  std::array<uint16_t, kNumServos> last_servo_pulse_{};
+  std::chrono::milliseconds servo_keepalive_{200};  // << ESP32 LINK_TIMEOUT_MS (500)
+
+  // --- loop timing diagnostics (max over each 10 s window) -----------------------
+  double max_read_us_{0.0};
+  double max_write_us_{0.0};
+  double max_write_period_us_{0.0};
+  uint32_t servo_frames_window_{0};
+  bool have_last_write_{false};
+  SteadyClock::time_point last_write_time_{};
+  SteadyClock::time_point last_summary_time_{};
 
   // --- arm servos (indexed by servo channel; all zero/false when no arm joints) ----
   std::array<ServoConfig, kNumServos> servo_cfg_{};

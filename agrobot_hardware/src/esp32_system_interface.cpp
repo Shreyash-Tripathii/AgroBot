@@ -94,6 +94,24 @@ uint16_t tx_checksum(const Packet & pkt)
     sizeof(Packet) - kTxBodyOffset - sizeof(uint16_t));
 }
 
+// Records the longest scope duration (microseconds) into `dst`.
+class MaxTimer
+{
+public:
+  explicit MaxTimer(double & dst)
+  : dst_(dst), t0_(std::chrono::steady_clock::now()) {}
+  ~MaxTimer()
+  {
+    const double us =
+      std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0_).count();
+    dst_ = std::max(dst_, us);
+  }
+
+private:
+  double & dst_;
+  std::chrono::steady_clock::time_point t0_;
+};
+
 // Returns 0 (B0) if the baud rate is not supported.
 speed_t baud_to_speed(int baud)
 {
@@ -480,6 +498,12 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_activate(
   invalidate_gain_cache();
   have_received_ = false;
   last_rx_time_ = SteadyClock::now();
+  status_wait_start_ = last_rx_time_;
+  last_servo_tx_ = SteadyClock::time_point{};  // re-send servo setpoints immediately
+  have_last_write_ = false;
+  last_summary_time_ = last_rx_time_;
+  max_read_us_ = max_write_us_ = max_write_period_us_ = 0.0;
+  servo_frames_window_ = 0;
   packets_ok_ = bad_checksum_count_ = dropped_byte_count_ = 0;
   reported_bad_checksum_ = reported_dropped_bytes_ = 0;
 
@@ -520,6 +544,7 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_error(const rclcpp_l
 hardware_interface::return_type ESP32SystemInterface::read(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
+  MaxTimer read_timer(max_read_us_);
   const auto now = SteadyClock::now();
 
   // Port lost (USB unplugged, I/O error)? Try to re-open at a limited rate.
@@ -570,6 +595,15 @@ hardware_interface::return_type ESP32SystemInterface::read(
   }
 
   if (
+    any_servo_ && !status_seen_ && fd_ >= 0 && now - status_wait_start_ > std::chrono::seconds(3))
+  {
+    RCLCPP_WARN_THROTTLE(
+      logger_, steady_clock_, 10000,
+      "No status frame from the ESP32 after 3 s: its firmware has no arm-servo support. "
+      "The arm is DISABLED (no servo frames are sent). Reflash agrobot_hardware/firmware.");
+  }
+
+  if (
     bad_checksum_count_ != reported_bad_checksum_ || dropped_byte_count_ != reported_dropped_bytes_)
   {
     RCLCPP_WARN_THROTTLE(
@@ -587,6 +621,22 @@ hardware_interface::return_type ESP32SystemInterface::read(
 hardware_interface::return_type ESP32SystemInterface::write(
   const rclcpp::Time &, const rclcpp::Duration & period)
 {
+  MaxTimer write_timer(max_write_us_);
+  const auto t_start = SteadyClock::now();
+  if (have_last_write_) {
+    const double gap_us =
+      std::chrono::duration<double, std::micro>(t_start - last_write_time_).count();
+    max_write_period_us_ = std::max(max_write_period_us_, gap_us);
+    if (gap_us > 35000.0) {
+      RCLCPP_WARN_THROTTLE(
+        logger_, steady_clock_, 2000,
+        "Control loop jitter: %.1f ms between write() calls (expected 20 ms).", gap_us / 1000.0);
+    }
+  }
+  last_write_time_ = t_start;
+  have_last_write_ = true;
+  log_timing_summary(t_start);
+
   if (any_servo_) {
     update_servo_setpoints(std::clamp(period.seconds(), 0.0, 0.1));
   }
@@ -609,10 +659,19 @@ hardware_interface::return_type ESP32SystemInterface::write(
     RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 1000, "Failed to write command packet.");
   }
 
-  // Type 0x03: every cycle while an arm is configured (doubles as the ESP32 keep-alive
-  // for the servo outputs).
-  if (any_servo_ && !send_servo_packet()) {
-    RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 1000, "Failed to write servo packet.");
+  // Type 0x03: only once the ESP32 has announced servo support, then on change plus a
+  // keep-alive (the ESP32 releases the servos if it hears nothing for 500 ms).
+  if (any_servo_ && esp_has_servo_) {
+    const auto pulses = compute_servo_pulses();
+    if (pulses != last_servo_pulse_ || t_start - last_servo_tx_ >= servo_keepalive_) {
+      if (send_servo_packet(pulses)) {
+        last_servo_pulse_ = pulses;
+        last_servo_tx_ = t_start;
+        ++servo_frames_window_;
+      } else {
+        RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 1000, "Failed to write servo packet.");
+      }
+    }
   }
   return hardware_interface::return_type::OK;
 }
@@ -667,6 +726,10 @@ bool ESP32SystemInterface::open_port()
   tcflush(fd, TCIOFLUSH);
   fd_ = fd;
   rx_buffer_.clear();
+  status_seen_ = false;  // the ESP32 may have been reflashed/reset: re-learn its capabilities
+  esp_has_servo_ = false;
+  status_wait_start_ = SteadyClock::now();
+  last_servo_tx_ = SteadyClock::time_point{};
   RCLCPP_INFO(logger_, "Opened %s @ %d baud (8N1).", serial_port_.c_str(), baud_rate_);
   return true;
 }
@@ -717,12 +780,36 @@ bool ESP32SystemInterface::extract_latest_packet(std::array<float, kNumWheels> &
   bool got = false;
   std::size_t pos = 0;
 
-  while (rx_buffer_.size() - pos >= kPacketSize) {
-    // Re-sync: skip until the 0xAA 0x55 header.
-    if (rx_buffer_[pos] != kHeader0 || rx_buffer_[pos + 1] != kHeader1) {
+  while (rx_buffer_.size() - pos >= 2) {
+    // Re-sync: skip until an 0xAA 0x55 (telemetry) or 0xAA 0x56 (status) header.
+    if (
+      rx_buffer_[pos] != kHeader0 ||
+      (rx_buffer_[pos + 1] != kHeader1 && rx_buffer_[pos + 1] != kStatusHeader1))
+    {
       ++pos;
       ++dropped_byte_count_;
       continue;
+    }
+
+    if (rx_buffer_[pos + 1] == kStatusHeader1) {
+      if (rx_buffer_.size() - pos < kStatusPacketSize) {
+        break;  // partial status frame
+      }
+      StatusPacket st{};
+      std::memcpy(&st, rx_buffer_.data() + pos, kStatusPacketSize);
+      if (st.checksum == fletcher16(rx_buffer_.data() + pos + kStatusBodyOffset, kStatusPayloadSize)) {
+        handle_status(st);
+        pos += kStatusPacketSize;
+      } else {
+        ++bad_checksum_count_;
+        ++pos;
+        ++dropped_byte_count_;
+      }
+      continue;
+    }
+
+    if (rx_buffer_.size() - pos < kPacketSize) {
+      break;  // partial telemetry frame
     }
 
     SerialPacket pkt{};
@@ -848,22 +935,100 @@ void ESP32SystemInterface::update_servo_setpoints(double dt)
   }
 }
 
-// Type 0x03
-bool ESP32SystemInterface::send_servo_packet()
+std::array<uint16_t, kNumServos> ESP32SystemInterface::compute_servo_pulses() const
 {
-  ServoTxPacket pkt{};
+  std::array<uint16_t, kNumServos> pulses{};
   for (std::size_t i = 0; i < kNumServos; ++i) {
     if (!servo_configured_[i]) {
-      pkt.pulse_us[i] = 0;  // unused channel: output off
-      continue;
+      continue;  // unused channel: output off (0)
     }
     const auto & cfg = servo_cfg_[i];
     const double us = std::clamp(
       cfg.zero_pulse_us + cfg.us_per_rad * hw_servo_pos_[i], cfg.min_pulse_us, cfg.max_pulse_us);
-    pkt.pulse_us[i] = static_cast<uint16_t>(std::lround(us));
+    pulses[i] = static_cast<uint16_t>(std::lround(us));
+  }
+  return pulses;
+}
+
+// Type 0x03
+bool ESP32SystemInterface::send_servo_packet(const std::array<uint16_t, kNumServos> & pulses)
+{
+  ServoTxPacket pkt{};
+  for (std::size_t i = 0; i < kNumServos; ++i) {
+    pkt.pulse_us[i] = pulses[i];
   }
   pkt.checksum = tx_checksum(pkt);
   return write_all(reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
+}
+
+void ESP32SystemInterface::handle_status(const StatusPacket & st)
+{
+  if (!status_seen_) {
+    RCLCPP_INFO(logger_, "ESP32 firmware protocol v%u, servo support: %s.",
+      static_cast<unsigned>(st.version), st.version >= kStatusVersionServo ? "yes" : "no");
+  } else if (st.uptime_ms < last_status_.uptime_ms) {
+    RCLCPP_WARN(logger_,
+      "ESP32 REBOOTED (uptime %lu ms, was %lu ms): brownout or crash? Re-sending gains and servos.",
+      static_cast<unsigned long>(st.uptime_ms),
+      static_cast<unsigned long>(last_status_.uptime_ms));
+    invalidate_gain_cache();
+    last_servo_tx_ = SteadyClock::time_point{};
+  } else {
+    auto delta = [](uint16_t now, uint16_t before) {
+        return static_cast<unsigned>(static_cast<uint16_t>(now - before));
+      };
+    if (const auto d = delta(st.watchdog_trips, last_status_.watchdog_trips); d > 0) {
+      RCLCPP_WARN(logger_,
+        "ESP32 link watchdog tripped %u time(s): no valid host packet for >500 ms (motors "
+        "stopped, servos released).", d);
+      last_servo_tx_ = SteadyClock::time_point{};  // restore the servos right away
+    }
+    const auto bad = delta(st.rx_bad_checksum, last_status_.rx_bad_checksum);
+    const auto skipped = delta(st.rx_skipped_bytes, last_status_.rx_skipped_bytes);
+    if (bad > 0 || skipped > 0) {
+      RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 2000,
+        "ESP32 RX re-sync: +%u bad checksums, +%u bytes skipped in the last second.", bad, skipped);
+    }
+    if (const auto d = delta(st.pid_mutex_misses, last_status_.pid_mutex_misses); d > 0) {
+      RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 2000,
+        "ESP32 PID task missed its state mutex %u time(s).", d);
+    }
+  }
+  last_status_ = st;
+  status_seen_ = true;
+  esp_has_servo_ = st.version >= kStatusVersionServo;
+}
+
+void ESP32SystemInterface::log_timing_summary(SteadyClock::time_point now)
+{
+  if (now - last_summary_time_ < std::chrono::seconds(10)) {
+    return;
+  }
+  last_summary_time_ = now;
+  const bool slow = max_write_us_ > 5000.0 || max_read_us_ > 5000.0 ||
+    max_write_period_us_ > 35000.0;
+  const char * fmt =
+    "Timing (10 s): read max %.2f ms, write max %.2f ms, write period max %.1f ms, "
+    "servo frames %lu | ESP32: up %lu s, rx pass max %u us, PID period max %.1f ms, "
+    "wd trips %u, bad ck %u, skipped %u, mutex miss %u.";
+  const auto & st = last_status_;
+  if (slow) {
+    RCLCPP_WARN(logger_, fmt, max_read_us_ / 1000.0, max_write_us_ / 1000.0,
+      max_write_period_us_ / 1000.0, static_cast<unsigned long>(servo_frames_window_),
+      static_cast<unsigned long>(st.uptime_ms / 1000), static_cast<unsigned>(st.max_pass_us),
+      st.max_pid_period_us / 1000.0, static_cast<unsigned>(st.watchdog_trips),
+      static_cast<unsigned>(st.rx_bad_checksum), static_cast<unsigned>(st.rx_skipped_bytes),
+      static_cast<unsigned>(st.pid_mutex_misses));
+  } else {
+    RCLCPP_INFO(logger_, fmt, max_read_us_ / 1000.0, max_write_us_ / 1000.0,
+      max_write_period_us_ / 1000.0, static_cast<unsigned long>(servo_frames_window_),
+      static_cast<unsigned long>(st.uptime_ms / 1000), static_cast<unsigned>(st.max_pass_us),
+      st.max_pid_period_us / 1000.0, static_cast<unsigned>(st.watchdog_trips),
+      static_cast<unsigned>(st.rx_bad_checksum), static_cast<unsigned>(st.rx_skipped_bytes),
+      static_cast<unsigned>(st.pid_mutex_misses));
+  }
+  max_read_us_ = max_write_us_ = max_write_period_us_ = 0.0;
+  servo_frames_window_ = 0;
 }
 
 bool ESP32SystemInterface::write_all(const uint8_t * raw, std::size_t len)

@@ -1,15 +1,14 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
-def generate_launch_description():
+def launch_setup(context, *args, **kwargs):
     pkg_description = get_package_share_directory('agrobot_description')
     pkg_bringup = get_package_share_directory('agrobot_bringup')
 
@@ -17,14 +16,13 @@ def generate_launch_description():
     controller_config = os.path.join(pkg_bringup, 'config', 'controllers.yaml')
 
     # Camera arm on/off (adds 3 servo joints to the same ESP32 hardware + spawns its controllers)
-    use_arm = LaunchConfiguration('use_arm')
-    use_arm_arg = DeclareLaunchArgument(
-        'use_arm', default_value='true',
-        description='Include the 3-DOF camera arm (URDF, servo joints, arm controllers)')
+    # Resolved here (not via IfCondition) because the OnProcessExit handlers below run
+    # later, outside this launch file's argument scope when it is included from bringup.
+    use_arm = LaunchConfiguration('use_arm').perform(context).strip().lower() == 'true'
 
     # Process URDF with ros2_control enabled
     robot_description_content = Command(
-        ['xacro ', xacro_file, ' use_ros2_control:=true use_arm:=', use_arm])
+        ['xacro ', xacro_file, ' use_ros2_control:=true use_arm:=', 'true' if use_arm else 'false'])
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
     # 1. Start the Controller Manager
@@ -86,17 +84,26 @@ def generate_launch_description():
         package='controller_manager',
         executable='spawner',
         arguments=['arm_controller'] + spawner_args,
-        condition=IfCondition(use_arm),
     )
     arm_position_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
         arguments=['arm_position_controller', '--inactive'] + spawner_args,
-        condition=IfCondition(use_arm),
     )
 
-    return LaunchDescription([
-        use_arm_arg,
+    arm_handlers = []
+    if use_arm:
+        arm_handlers = [
+            # Arm controllers: independent of the base chain, started once the JSB is up
+            RegisterEventHandler(OnProcessExit(
+                target_action=joint_state_broadcaster_spawner,
+                on_exit=[arm_controller_spawner])),
+            RegisterEventHandler(OnProcessExit(
+                target_action=arm_controller_spawner,
+                on_exit=[arm_position_controller_spawner])),
+        ]
+
+    return [
         controller_manager,
         robot_state_pub_node,
         joint_state_broadcaster_spawner,
@@ -110,11 +117,14 @@ def generate_launch_description():
         RegisterEventHandler(OnProcessExit(
             target_action=gain_controllers_spawner,
             on_exit=[gain_scheduler])),
-        # Arm controllers: independent of the base chain, started once the JSB is up
-        RegisterEventHandler(OnProcessExit(
-            target_action=joint_state_broadcaster_spawner,
-            on_exit=[arm_controller_spawner])),
-        RegisterEventHandler(OnProcessExit(
-            target_action=arm_controller_spawner,
-            on_exit=[arm_position_controller_spawner])),
+        *arm_handlers,
+    ]
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_arm', default_value='true',
+            description='Include the 3-DOF camera arm (URDF, servo joints, arm controllers)'),
+        OpaqueFunction(function=launch_setup),
     ])
