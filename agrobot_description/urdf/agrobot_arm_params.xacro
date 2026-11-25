@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<!--
+  Every tunable number of the 3-DOF camera arm lives in this file. Link lengths, mount
+  pose, joint limits/home poses, camera size and servo calibration are plain xacro
+  properties: edit here and everything (URDF geometry, inertia, ros2_control joint
+  limits, hardware pulse mapping) follows. Requires chassis_* properties from
+  agrobot.urdf.xacro (this file is included after them).
+
+  Kinematic chain (zero pose = arm straight up, camera looking along robot +x):
+    base_link -> arm_base_link
+      -(arm_base_yaw_joint,      axis z)-> arm_turret_link
+      -(arm_shoulder_pitch_joint, axis y)-> arm_upper_link
+      -(arm_wrist_pitch_joint,    axis y)-> arm_wrist_link
+      -> camera_link (REP-103: x fwd) -> camera_optical_frame (z fwd)
+  Positive pitch tilts the arm / camera forward (towards +x, i.e. camera looks down).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ===== Mount pose on base_link (default: rear edge of the chassis top) ===== -->
+  <xacro:property name="arm_mount_x" value="${-chassis_length/2 + 0.03}"/>
+  <xacro:property name="arm_mount_y" value="0.0"/>
+  <xacro:property name="arm_mount_z" value="${chassis_height/2}"/>
+  <xacro:property name="arm_mount_yaw" value="0.0"/>  <!-- rad; 0 = camera looks forward at home -->
+
+  <!-- ===== Link geometry (metres) ===== -->
+  <xacro:property name="arm_base_height" value="0.045"/>    <!-- yaw servo housing: mount -> yaw axis -->
+  <xacro:property name="arm_turret_length" value="0.060"/>  <!-- yaw axis -> shoulder axis -->
+  <xacro:property name="arm_upper_length" value="0.120"/>   <!-- shoulder axis -> wrist axis -->
+  <xacro:property name="arm_wrist_length" value="0.080"/>   <!-- wrist axis -> camera mount -->
+  <xacro:property name="arm_link_width" value="0.030"/>     <!-- box size along the joint axis (y) -->
+  <xacro:property name="arm_link_thickness" value="0.020"/> <!-- box size in the swing direction (x) -->
+  <xacro:property name="arm_base_size_x" value="0.045"/>    <!-- servo housing footprint -->
+  <xacro:property name="arm_base_size_y" value="0.045"/>
+
+  <!-- ===== Masses (kg), servos included ===== -->
+  <xacro:property name="arm_base_mass" value="0.080"/>
+  <xacro:property name="arm_turret_mass" value="0.090"/>
+  <xacro:property name="arm_upper_mass" value="0.100"/>
+  <xacro:property name="arm_wrist_mass" value="0.070"/>
+
+  <!-- ===== Camera (end effector) ===== -->
+  <xacro:property name="camera_size_x" value="0.030"/>  <!-- depth, along the viewing axis -->
+  <xacro:property name="camera_size_y" value="0.070"/>
+  <xacro:property name="camera_size_z" value="0.030"/>
+  <xacro:property name="camera_mass" value="0.100"/>
+  <!-- camera_link (back face of the camera) relative to the TIP of arm_wrist_link
+       (arm frame at home: x forward, z up). Rotate with roll/pitch/yaw if needed. -->
+  <xacro:property name="camera_offset_x" value="0.020"/>
+  <xacro:property name="camera_offset_y" value="0.0"/>
+  <xacro:property name="camera_offset_z" value="0.0"/>
+  <xacro:property name="camera_roll" value="0.0"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:property name="camera_yaw" value="0.0"/>
+
+  <!-- ===== Joints: servo channel, limits, home pose ===== -->
+  <!-- lower/upper in rad; velocity rad/s (also the host slew limit); effort N*m
+       (MG995 stall ~0.9 N*m at 4.8 V). -->
+  <xacro:property name="arm_yaw_channel" value="0"/>
+  <xacro:property name="arm_yaw_lower" value="${-pi/2}"/>
+  <xacro:property name="arm_yaw_upper" value="${pi/2}"/>
+  <xacro:property name="arm_yaw_home" value="0.0"/>
+  <xacro:property name="arm_yaw_velocity" value="1.5"/>
+  <xacro:property name="arm_yaw_effort" value="0.9"/>
+
+  <xacro:property name="arm_shoulder_channel" value="1"/>
+  <xacro:property name="arm_shoulder_lower" value="${-pi/2}"/>
+  <xacro:property name="arm_shoulder_upper" value="${pi/2}"/>
+  <xacro:property name="arm_shoulder_home" value="0.0"/>
+  <xacro:property name="arm_shoulder_velocity" value="1.5"/>
+  <xacro:property name="arm_shoulder_effort" value="0.9"/>
+
+  <xacro:property name="arm_wrist_channel" value="2"/>
+  <xacro:property name="arm_wrist_lower" value="${-pi/2}"/>
+  <xacro:property name="arm_wrist_upper" value="${pi/2}"/>
+  <xacro:property name="arm_wrist_home" value="0.0"/>
+  <xacro:property name="arm_wrist_velocity" value="1.5"/>
+  <xacro:property name="arm_wrist_effort" value="0.9"/>
+
+  <!-- ===== Servo calibration (used by the ESP32 hardware interface) ===== -->
+  <!-- pulse_us = zero_us + us_per_rad * angle, clamped to [min_us, max_us].
+       Nominal MG995: 500..2500 us over ~180 deg -> 2000/pi us/rad. Make us_per_rad
+       NEGATIVE to reverse a joint's direction; adjust zero_us to trim the centre. -->
+  <xacro:property name="arm_servo_min_us" value="500"/>
+  <xacro:property name="arm_servo_max_us" value="2500"/>
+  <xacro:property name="arm_yaw_zero_us" value="1500"/>
+  <xacro:property name="arm_yaw_us_per_rad" value="${2000/pi}"/>
+  <xacro:property name="arm_shoulder_zero_us" value="1500"/>
+  <xacro:property name="arm_shoulder_us_per_rad" value="${2000/pi}"/>
+  <xacro:property name="arm_wrist_zero_us" value="1500"/>
+  <xacro:property name="arm_wrist_us_per_rad" value="${2000/pi}"/>
+
+</robot>

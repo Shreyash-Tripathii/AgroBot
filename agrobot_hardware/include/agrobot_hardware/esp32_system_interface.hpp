@@ -11,8 +11,19 @@
 //   Type 0x02 gains    (18 B): AA 55 | 02 | motor_id u8 (0=FL,1=FR,2=RL,3=RR)
 //                              | kp f32 | ki f32 | kd f32 | fletcher16
 //
+//   Type 0x03 servos   (11 B): AA 55 | 03 | 3 x uint16 pulse width in us (servo 0,1,2,
+//                              0 = output off / servo limp) | fletcher16
+//
 // ESP32 -> host telemetry is unchanged: 20 B, AA 55 | 4 x float rad/s | fletcher16
-// (checksum over the 16 payload bytes only).
+// (checksum over the 16 payload bytes only). The MG995 arm servos are open loop, so
+// there is no servo feedback: the reported joint state is the host's slew-limited
+// estimate of the servo position.
+//
+// The ESP32 runs a link watchdog: if no valid packet arrives for LINK_TIMEOUT_MS it
+// zeroes all motor PWM and releases every servo until the host talks to it again.
+// write() only runs while this hardware is ACTIVE, so deactivating/shutting down the
+// host stops the servo keep-alive too: the arm is held for at most the watchdog timeout
+// and then goes limp (it may sag under gravity). Park the arm in a safe pose first.
 
 #ifndef AGROBOT_HARDWARE__ESP32_SYSTEM_INTERFACE_HPP_
 #define AGROBOT_HARDWARE__ESP32_SYSTEM_INTERFACE_HPP_
@@ -39,6 +50,7 @@ namespace agrobot_hardware
 {
 
 constexpr std::size_t kNumWheels = 4;  // Order on the wire: FL, FR, RL, RR
+constexpr std::size_t kNumServos = 3;  // Arm servo channels 0..2 (optional joints)
 constexpr uint8_t kHeader0 = 0xAA;
 constexpr uint8_t kHeader1 = 0x55;
 
@@ -64,6 +76,7 @@ constexpr std::size_t kPayloadSize = sizeof(float) * kNumWheels;  // 16 bytes
 // ---- host -> ESP32 ----------------------------------------------------------
 constexpr uint8_t kTypeVelocity = 0x01;
 constexpr uint8_t kTypeGains = 0x02;
+constexpr uint8_t kTypeServo = 0x03;
 constexpr std::size_t kTxBodyOffset = 2;  // checksum starts at the type byte
 
 // 21 bytes: Header (2) + Type (1) + 4x float (16) + checksum (2)
@@ -88,6 +101,29 @@ struct __attribute__((packed)) GainTxPacket
   uint16_t checksum;
 };
 static_assert(sizeof(GainTxPacket) == 18, "GainTxPacket must be exactly 18 bytes");
+
+// 11 bytes: Header (2) + Type (1) + 3x uint16 (6) + checksum (2)
+struct __attribute__((packed)) ServoTxPacket
+{
+  uint8_t header[2] = {kHeader0, kHeader1};
+  uint8_t type = kTypeServo;
+  uint16_t pulse_us[kNumServos];  // 0 = off, otherwise ~500..2500
+  uint16_t checksum;
+};
+static_assert(sizeof(ServoTxPacket) == 11, "ServoTxPacket must be exactly 11 bytes");
+
+/// Per-servo-joint configuration, parsed from the URDF (joint params / interface limits).
+struct ServoConfig
+{
+  double zero_pulse_us{1500.0};  // pulse at joint angle 0
+  double us_per_rad{636.62};     // pulse change per rad; negative reverses direction
+  double min_pulse_us{500.0};
+  double max_pulse_us{2500.0};
+  double max_velocity{1.5};      // rad/s slew limit (also the reported velocity bound)
+  double min_pos{-1.5708};       // rad
+  double max_pos{1.5708};        // rad
+  double home{0.0};              // rad, position before the first command
+};
 
 struct Gains
 {
@@ -140,6 +176,8 @@ private:
   bool write_all(const uint8_t * raw, std::size_t len);
   bool send_packet(const std::array<float, kNumWheels> & velocities);  // Type 0x01
   bool send_gain_packet(std::size_t slot, const Gains & gains);        // Type 0x02
+  bool send_servo_packet();                                            // Type 0x03
+  void update_servo_setpoints(double dt);  // slew-limit command -> estimated position
   void send_zero_velocity();
 
   // --- gain handling --------------------------------------------------------
@@ -178,7 +216,21 @@ private:
   std::array<double, kNumWheels> hw_kp_{};  // command interfaces "kp", "ki", "kd"
   std::array<double, kNumWheels> hw_ki_{};
   std::array<double, kNumWheels> hw_kd_{};
-  std::array<std::size_t, kNumWheels> joint_to_slot_{};  // info_.joints index -> slot
+  // info_.joints index -> wheel slot (is_servo == false) or servo channel (true)
+  struct JointMap
+  {
+    bool is_servo{false};
+    std::size_t index{0};
+  };
+  std::vector<JointMap> joint_map_;
+
+  // --- arm servos (indexed by servo channel; all zero/false when no arm joints) ----
+  std::array<ServoConfig, kNumServos> servo_cfg_{};
+  std::array<bool, kNumServos> servo_configured_{};
+  std::array<double, kNumServos> hw_servo_cmd_{};  // command interface "position"
+  std::array<double, kNumServos> hw_servo_pos_{};  // state: slew-limited estimate
+  std::array<double, kNumServos> hw_servo_vel_{};
+  bool any_servo_{false};
 
   // --- gain cache (indexed by wire slot) ------------------------------------
   std::array<Gains, kNumWheels> initial_gains_{};  // from the URDF initial_value params

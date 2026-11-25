@@ -22,9 +22,34 @@
     </joint>
     </xacro:macro>
     <!--
-     Instantiate once from your main URDF:  <xacro:agrobot_ros2_control/>
+     One open-loop MG995 arm joint: position command in, estimated position/velocity out.
+     The hardware interface slew-limits the command and converts it to a servo pulse:
+       pulse_us = zero_us + us_per_rad * angle   (clamped to [min_us, max_us]).
+     Limits, home pose and calibration come from agrobot_arm_params.xacro.
     -->
-    <xacro:macro name="agrobot_ros2_control" params="serial_port:=/tmp/esp32 baud_rate:=500000 init_kp:=2.0 init_ki:=0.5 init_kd:=0.0">
+    <xacro:macro name="agrobot_servo_joint" params="name channel lower upper home velocity zero_us us_per_rad min_us max_us">
+    <joint name="${name}">
+    <param name="servo_channel">${channel}</param>
+    <param name="zero_pulse_us">${zero_us}</param>
+    <param name="us_per_rad">${us_per_rad}</param>
+    <param name="min_pulse_us">${min_us}</param>
+    <param name="max_pulse_us">${max_us}</param>
+    <param name="max_velocity">${velocity}</param>
+    <command_interface name="position">
+    <param name="min">${lower}</param>
+    <param name="max">${upper}</param>
+    </command_interface>
+    <state_interface name="position">
+    <param name="initial_value">${home}</param>
+    </state_interface>
+    <state_interface name="velocity"/>
+    </joint>
+    </xacro:macro>
+    <!--
+     Instantiate once from your main URDF:  <xacro:agrobot_ros2_control/>
+     use_arm adds the 3 arm servo joints to the same hardware (one serial port, one plugin).
+    -->
+    <xacro:macro name="agrobot_ros2_control" params="serial_port:=/tmp/esp32 baud_rate:=500000 init_kp:=2.0 init_ki:=0.5 init_kd:=0.0 use_arm:=false">
     <ros2_control name="AgrobotSystem" type="system">
     <hardware>
     <plugin>agrobot_hardware/ESP32SystemInterface</plugin>
@@ -35,6 +60,20 @@
     <xacro:agrobot_wheel_joint name="front_right_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
     <xacro:agrobot_wheel_joint name="rear_left_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
     <xacro:agrobot_wheel_joint name="rear_right_wheel_joint" kp="${init_kp}" ki="${init_ki}" kd="${init_kd}"/>
+    <xacro:if value="${use_arm}">
+    <xacro:agrobot_servo_joint name="arm_base_yaw_joint" channel="${arm_yaw_channel}"
+        lower="${arm_yaw_lower}" upper="${arm_yaw_upper}" home="${arm_yaw_home}"
+        velocity="${arm_yaw_velocity}" zero_us="${arm_yaw_zero_us}"
+        us_per_rad="${arm_yaw_us_per_rad}" min_us="${arm_servo_min_us}" max_us="${arm_servo_max_us}"/>
+    <xacro:agrobot_servo_joint name="arm_shoulder_pitch_joint" channel="${arm_shoulder_channel}"
+        lower="${arm_shoulder_lower}" upper="${arm_shoulder_upper}" home="${arm_shoulder_home}"
+        velocity="${arm_shoulder_velocity}" zero_us="${arm_shoulder_zero_us}"
+        us_per_rad="${arm_shoulder_us_per_rad}" min_us="${arm_servo_min_us}" max_us="${arm_servo_max_us}"/>
+    <xacro:agrobot_servo_joint name="arm_wrist_pitch_joint" channel="${arm_wrist_channel}"
+        lower="${arm_wrist_lower}" upper="${arm_wrist_upper}" home="${arm_wrist_home}"
+        velocity="${arm_wrist_velocity}" zero_us="${arm_wrist_zero_us}"
+        us_per_rad="${arm_wrist_us_per_rad}" min_us="${arm_servo_min_us}" max_us="${arm_servo_max_us}"/>
+    </xacro:if>
     </ros2_control>
     </xacro:macro>
 

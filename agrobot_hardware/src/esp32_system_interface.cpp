@@ -53,6 +53,24 @@ bool parse_gain(const std::string & text, float & out)
   }
 }
 
+// Parses any finite double (negative allowed) from a URDF/xacro string.
+bool parse_double(const std::string & text, double & out)
+{
+  if (text.empty()) {
+    return false;
+  }
+  try {
+    const double v = std::stod(text);
+    if (!std::isfinite(v)) {
+      return false;
+    }
+    out = v;
+    return true;
+  } catch (const std::exception &) {
+    return false;
+  }
+}
+
 // NaN (no controller command yet) keeps the previous valid value; negatives clamp to 0.
 float sanitize_gain(double raw, float fallback)
 {
@@ -175,12 +193,110 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_init(
   }
 
   // ---- joint validation + mapping to wire slots -----------------------------
-  if (info_.joints.size() != kNumWheels) {
-    RCLCPP_FATAL(logger_, "Expected %zu joints, URDF has %zu.", kNumWheels, info_.joints.size());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-
+  joint_map_.assign(info_.joints.size(), JointMap{});
   std::array<bool, kNumWheels> slot_used{};
+  std::array<bool, kNumServos> servo_used{};
+
+  // Optional arm joint: any joint that is not one of the four wheels. It needs a
+  // "servo_channel" joint param (0..2), one "position" command interface and
+  // "position" (+ optional "velocity") state interfaces. Calibration is read from the
+  // joint params; position limits from the command interface min/max; the home pose
+  // from the position state interface initial_value.
+  auto parse_servo_joint =
+    [&](const hardware_interface::ComponentInfo & joint, std::size_t j) -> bool {
+      const auto & jp = joint.parameters;
+      const auto ch_it = jp.find("servo_channel");
+      if (ch_it == jp.end()) {
+        RCLCPP_FATAL(logger_,
+          "Unexpected joint '%s' (not a wheel, and no 'servo_channel' param).",
+          joint.name.c_str());
+        return false;
+      }
+      int ch = -1;
+      try {
+        ch = std::stoi(ch_it->second);
+      } catch (const std::exception &) {
+        ch = -1;
+      }
+      if (ch < 0 || ch >= static_cast<int>(kNumServos) || servo_used[static_cast<std::size_t>(ch)]) {
+        RCLCPP_FATAL(logger_, "Joint '%s': invalid or duplicate servo_channel '%s' (0..%zu).",
+          joint.name.c_str(), ch_it->second.c_str(), kNumServos - 1);
+        return false;
+      }
+
+      ServoConfig cfg;
+      const std::array<std::pair<const char *, double *>, 5> numeric_params = {{
+        {"zero_pulse_us", &cfg.zero_pulse_us}, {"us_per_rad", &cfg.us_per_rad},
+        {"min_pulse_us", &cfg.min_pulse_us}, {"max_pulse_us", &cfg.max_pulse_us},
+        {"max_velocity", &cfg.max_velocity}}};
+      for (const auto & np : numeric_params) {
+        const auto it = jp.find(np.first);
+        if (it != jp.end() && !parse_double(it->second, *np.second)) {
+          RCLCPP_FATAL(logger_, "Joint '%s': param '%s' is not a number: '%s'.",
+            joint.name.c_str(), np.first, it->second.c_str());
+          return false;
+        }
+      }
+
+      if (joint.command_interfaces.size() != 1 ||
+        joint.command_interfaces[0].name != hardware_interface::HW_IF_POSITION)
+      {
+        RCLCPP_FATAL(logger_, "Servo joint '%s' needs exactly one 'position' command interface.",
+          joint.name.c_str());
+        return false;
+      }
+      const auto & ci = joint.command_interfaces[0];
+      if ((!ci.min.empty() && !parse_double(ci.min, cfg.min_pos)) ||
+        (!ci.max.empty() && !parse_double(ci.max, cfg.max_pos)))
+      {
+        RCLCPP_FATAL(logger_, "Servo joint '%s': bad min/max on the position command interface.",
+          joint.name.c_str());
+        return false;
+      }
+
+      bool has_pos_state = false;
+      for (const auto & si : joint.state_interfaces) {
+        if (si.name == hardware_interface::HW_IF_POSITION) {
+          has_pos_state = true;
+          if (!si.initial_value.empty() && !parse_double(si.initial_value, cfg.home)) {
+            RCLCPP_FATAL(logger_, "Servo joint '%s': bad position initial_value '%s'.",
+              joint.name.c_str(), si.initial_value.c_str());
+            return false;
+          }
+        } else if (si.name != hardware_interface::HW_IF_VELOCITY) {
+          RCLCPP_FATAL(logger_, "Servo joint '%s': unexpected state interface '%s'.",
+            joint.name.c_str(), si.name.c_str());
+          return false;
+        }
+      }
+      if (!has_pos_state) {
+        RCLCPP_FATAL(logger_, "Servo joint '%s' needs a 'position' state interface.",
+          joint.name.c_str());
+        return false;
+      }
+
+      if (cfg.min_pos >= cfg.max_pos || cfg.min_pulse_us >= cfg.max_pulse_us ||
+        cfg.min_pulse_us < 400.0 || cfg.max_pulse_us > 2600.0 || cfg.max_velocity <= 0.0 ||
+        cfg.us_per_rad == 0.0)
+      {
+        RCLCPP_FATAL(logger_,
+          "Servo joint '%s': inconsistent limits (pos %.3f..%.3f, pulse %.0f..%.0f us, "
+          "max_velocity %.3f, us_per_rad %.2f).",
+          joint.name.c_str(), cfg.min_pos, cfg.max_pos, cfg.min_pulse_us, cfg.max_pulse_us,
+          cfg.max_velocity, cfg.us_per_rad);
+        return false;
+      }
+      cfg.home = std::clamp(cfg.home, cfg.min_pos, cfg.max_pos);
+
+      const auto idx = static_cast<std::size_t>(ch);
+      servo_used[idx] = true;
+      servo_configured_[idx] = true;
+      servo_cfg_[idx] = cfg;
+      joint_map_[j] = JointMap{true, idx};
+      any_servo_ = true;
+      return true;
+    };
+
   for (std::size_t j = 0; j < info_.joints.size(); ++j) {
     const auto & joint = info_.joints[j];
 
@@ -188,8 +304,10 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_init(
       std::find_if(kWheelJointNames.begin(), kWheelJointNames.end(),
         [&](const char * n) {return joint.name == n;});
     if (slot_it == kWheelJointNames.end()) {
-      RCLCPP_FATAL(logger_, "Unexpected joint '%s'.", joint.name.c_str());
-      return hardware_interface::CallbackReturn::ERROR;
+      if (!parse_servo_joint(joint, j)) {
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+      continue;
     }
     const auto slot = static_cast<std::size_t>(slot_it - kWheelJointNames.begin());
     if (slot_used[slot]) {
@@ -197,7 +315,7 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_init(
       return hardware_interface::CallbackReturn::ERROR;
     }
     slot_used[slot] = true;
-    joint_to_slot_[j] = slot;
+    joint_map_[j] = JointMap{false, slot};
 
     // Command interfaces: velocity + kp/ki/kd (any order). The gains must carry an
     // initial_value so the ESP32 is never handed a guessed PID configuration.
@@ -255,21 +373,40 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_init(
     }
   }
 
+  for (std::size_t w = 0; w < kNumWheels; ++w) {
+    if (!slot_used[w]) {
+      RCLCPP_FATAL(logger_, "Missing wheel joint '%s'.", kWheelJointNames[w]);
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+  }
+
   hw_commands_.fill(0.0);
   hw_velocities_.fill(0.0);
   hw_positions_.fill(0.0);
   reset_gain_state();
+  for (std::size_t i = 0; i < kNumServos; ++i) {
+    hw_servo_cmd_[i] = hw_servo_pos_[i] = servo_cfg_[i].home;
+    hw_servo_vel_[i] = 0.0;
+  }
 
-  RCLCPP_INFO(logger_, "Initialised: port=%s baud=%d", serial_port_.c_str(), baud_rate_);
+  RCLCPP_INFO(logger_, "Initialised: port=%s baud=%d, %zu wheel joints, %zu arm servo joints",
+    serial_port_.c_str(), baud_rate_, kNumWheels, info_.joints.size() - kNumWheels);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 std::vector<hardware_interface::StateInterface> ESP32SystemInterface::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> interfaces;
-  interfaces.reserve(2 * kNumWheels);
+  interfaces.reserve(2 * info_.joints.size());
   for (std::size_t j = 0; j < info_.joints.size(); ++j) {
-    const auto slot = joint_to_slot_[j];
+    const auto slot = joint_map_[j].index;
+    if (joint_map_[j].is_servo) {
+      interfaces.emplace_back(
+        info_.joints[j].name, hardware_interface::HW_IF_POSITION, &hw_servo_pos_[slot]);
+      interfaces.emplace_back(
+        info_.joints[j].name, hardware_interface::HW_IF_VELOCITY, &hw_servo_vel_[slot]);
+      continue;
+    }
     interfaces.emplace_back(
       info_.joints[j].name, hardware_interface::HW_IF_POSITION, &hw_positions_[slot]);
     interfaces.emplace_back(
@@ -281,10 +418,14 @@ std::vector<hardware_interface::StateInterface> ESP32SystemInterface::export_sta
 std::vector<hardware_interface::CommandInterface> ESP32SystemInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> interfaces;
-  interfaces.reserve(4 * kNumWheels);
+  interfaces.reserve(4 * info_.joints.size());
   for (std::size_t j = 0; j < info_.joints.size(); ++j) {
-    const auto slot = joint_to_slot_[j];
+    const auto slot = joint_map_[j].index;
     const auto & name = info_.joints[j].name;
+    if (joint_map_[j].is_servo) {
+      interfaces.emplace_back(name, hardware_interface::HW_IF_POSITION, &hw_servo_cmd_[slot]);
+      continue;
+    }
     interfaces.emplace_back(name, hardware_interface::HW_IF_VELOCITY, &hw_commands_[slot]);
     interfaces.emplace_back(name, kIfKp, &hw_kp_[slot]);
     interfaces.emplace_back(name, kIfKi, &hw_ki_[slot]);
@@ -308,6 +449,10 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_configure(
   hw_velocities_.fill(0.0);
   hw_positions_.fill(0.0);
   reset_gain_state();
+  for (std::size_t i = 0; i < kNumServos; ++i) {
+    hw_servo_cmd_[i] = hw_servo_pos_[i] = servo_cfg_[i].home;
+    hw_servo_vel_[i] = 0.0;
+  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -328,6 +473,9 @@ hardware_interface::CallbackReturn ESP32SystemInterface::on_activate(
 
   hw_commands_.fill(0.0);
   hw_velocities_.fill(0.0);
+  // Arm: hold wherever the estimate says the servos are (no jump on activation).
+  hw_servo_cmd_ = hw_servo_pos_;
+  hw_servo_vel_.fill(0.0);
 
   invalidate_gain_cache();
   have_received_ = false;
@@ -437,8 +585,12 @@ hardware_interface::return_type ESP32SystemInterface::read(
 }
 
 hardware_interface::return_type ESP32SystemInterface::write(
-  const rclcpp::Time &, const rclcpp::Duration &)
+  const rclcpp::Time &, const rclcpp::Duration & period)
 {
+  if (any_servo_) {
+    update_servo_setpoints(std::clamp(period.seconds(), 0.0, 0.1));
+  }
+
   if (fd_ < 0) {
     return hardware_interface::return_type::OK;  // read() handles reconnect / timeout
   }
@@ -455,6 +607,12 @@ hardware_interface::return_type ESP32SystemInterface::write(
 
   if (!send_packet(cmd)) {
     RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 1000, "Failed to write command packet.");
+  }
+
+  // Type 0x03: every cycle while an arm is configured (doubles as the ESP32 keep-alive
+  // for the servo outputs).
+  if (any_servo_ && !send_servo_packet()) {
+    RCLCPP_WARN_THROTTLE(logger_, steady_clock_, 1000, "Failed to write servo packet.");
   }
   return hardware_interface::return_type::OK;
 }
@@ -667,6 +825,43 @@ bool ESP32SystemInterface::send_gain_packet(std::size_t slot, const Gains & gain
   pkt.kp = gains.kp;
   pkt.ki = gains.ki;
   pkt.kd = gains.kd;
+  pkt.checksum = tx_checksum(pkt);
+  return write_all(reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
+}
+
+// Open-loop servos: the "measured" position is the command moved towards its target at
+// no more than max_velocity, clamped to the joint limits. NaN (no controller yet) holds.
+void ESP32SystemInterface::update_servo_setpoints(double dt)
+{
+  for (std::size_t i = 0; i < kNumServos; ++i) {
+    if (!servo_configured_[i]) {
+      continue;
+    }
+    const auto & cfg = servo_cfg_[i];
+    const double cmd = hw_servo_cmd_[i];
+    const double target = std::isfinite(cmd) ? std::clamp(cmd, cfg.min_pos, cfg.max_pos) :
+      hw_servo_pos_[i];
+    const double max_step = cfg.max_velocity * dt;
+    const double step = std::clamp(target - hw_servo_pos_[i], -max_step, max_step);
+    hw_servo_pos_[i] += step;
+    hw_servo_vel_[i] = dt > 1e-6 ? step / dt : 0.0;
+  }
+}
+
+// Type 0x03
+bool ESP32SystemInterface::send_servo_packet()
+{
+  ServoTxPacket pkt{};
+  for (std::size_t i = 0; i < kNumServos; ++i) {
+    if (!servo_configured_[i]) {
+      pkt.pulse_us[i] = 0;  // unused channel: output off
+      continue;
+    }
+    const auto & cfg = servo_cfg_[i];
+    const double us = std::clamp(
+      cfg.zero_pulse_us + cfg.us_per_rad * hw_servo_pos_[i], cfg.min_pulse_us, cfg.max_pulse_us);
+    pkt.pulse_us[i] = static_cast<uint16_t>(std::lround(us));
+  }
   pkt.checksum = tx_checksum(pkt);
   return write_all(reinterpret_cast<const uint8_t *>(&pkt), sizeof(pkt));
 }

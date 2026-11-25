@@ -17,6 +17,16 @@ controller_manager:
     kd_controller:
       type: forward_command_controller/ForwardCommandController
 
+    # 3-DOF camera arm (only spawned when use_arm:=true). Both claim the arm joints'
+    # "position" command interface, so run ONE at a time:
+    #   arm_controller          - trajectories / MoveIt (active by default)
+    #   arm_position_controller - raw joint angles on /arm_position_controller/commands
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    arm_position_controller:
+      type: forward_command_controller/ForwardCommandController
+
 agrobot_base_controller:
   ros__parameters:
     left_wheel_names: ["front_left_wheel_joint", "rear_left_wheel_joint"]
@@ -71,3 +81,42 @@ kd_controller:
       - rear_left_wheel_joint
       - rear_right_wheel_joint
     interface_name: kd
+
+# ---------------------------------------------------------------------------
+# Camera arm. Joint order = [base yaw, shoulder pitch, wrist pitch]. The servos are
+# open loop, so the reported state is the hardware interface's slew-limited estimate.
+# ---------------------------------------------------------------------------
+# Trajectory interface for MoveIt2 (FollowJointTrajectory action:
+# /arm_controller/follow_joint_trajectory) and plain JointTrajectory messages on
+# /arm_controller/joint_trajectory.
+arm_controller:
+  ros__parameters:
+    joints:
+      - arm_base_yaw_joint
+      - arm_shoulder_pitch_joint
+      - arm_wrist_pitch_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_partial_joints_goal: true
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    constraints:
+      stopped_velocity_tolerance: 0.1
+      goal_time: 1.0
+      arm_base_yaw_joint: {trajectory: 0.0, goal: 0.05}
+      arm_shoulder_pitch_joint: {trajectory: 0.0, goal: 0.05}
+      arm_wrist_pitch_joint: {trajectory: 0.0, goal: 0.05}
+
+# Direct joint angles (rad) as Float64MultiArray, mapped to `joints` BY INDEX. Spawned
+# inactive; switch with:
+#   ros2 control switch_controllers --deactivate arm_controller --activate arm_position_controller
+arm_position_controller:
+  ros__parameters:
+    joints:
+      - arm_base_yaw_joint
+      - arm_shoulder_pitch_joint
+      - arm_wrist_pitch_joint
+    interface_name: position

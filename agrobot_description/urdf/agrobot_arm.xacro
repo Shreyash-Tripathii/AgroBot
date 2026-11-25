@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<!--
+  3-DOF camera arm macros. All numbers come from agrobot_arm_params.xacro.
+  Usage:  <xacro:agrobot_camera_arm parent="base_link"/>
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Box link whose frame origin sits at the joint (bottom) and extends along +z.
+       The inertial origin is at the box centre, so MoveIt/physics see the right COM. -->
+  <xacro:macro name="arm_segment" params="name length size_x size_y mass color">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry><box size="${size_x} ${size_y} ${length}"/></geometry>
+        <material name="arm_${color}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry><box size="${size_x} ${size_y} ${length}"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia ixx="${(mass/12)*(size_y*size_y + length*length)}" ixy="0.0" ixz="0.0"
+                 iyy="${(mass/12)*(size_x*size_x + length*length)}" iyz="0.0"
+                 izz="${(mass/12)*(size_x*size_x + size_y*size_y)}"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="arm_revolute_joint" params="name parent child z axis lower upper velocity effort">
+    <joint name="${name}" type="revolute">
+      <parent link="${parent}"/>
+      <child link="${child}"/>
+      <origin xyz="0 0 ${z}" rpy="0 0 0"/>
+      <axis xyz="${axis}"/>
+      <limit lower="${lower}" upper="${upper}" velocity="${velocity}" effort="${effort}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="agrobot_camera_arm" params="parent:=base_link">
+    <material name="arm_orange"><color rgba="0.9 0.5 0.1 1.0"/></material>
+    <material name="arm_dark"><color rgba="0.15 0.15 0.18 1.0"/></material>
+
+    <!-- Mount: yaw servo housing fixed to the chassis -->
+    <xacro:arm_segment name="arm_base_link" length="${arm_base_height}"
+                       size_x="${arm_base_size_x}" size_y="${arm_base_size_y}"
+                       mass="${arm_base_mass}" color="dark"/>
+    <joint name="arm_mount_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="arm_base_link"/>
+      <origin xyz="${arm_mount_x} ${arm_mount_y} ${arm_mount_z}" rpy="0 0 ${arm_mount_yaw}"/>
+    </joint>
+
+    <!-- Joint 1: base yaw -->
+    <xacro:arm_segment name="arm_turret_link" length="${arm_turret_length}"
+                       size_x="${arm_link_thickness}" size_y="${arm_link_width}"
+                       mass="${arm_turret_mass}" color="orange"/>
+    <xacro:arm_revolute_joint name="arm_base_yaw_joint" parent="arm_base_link"
+        child="arm_turret_link" z="${arm_base_height}" axis="0 0 1"
+        lower="${arm_yaw_lower}" upper="${arm_yaw_upper}"
+        velocity="${arm_yaw_velocity}" effort="${arm_yaw_effort}"/>
+
+    <!-- Joint 2: shoulder pitch -->
+    <xacro:arm_segment name="arm_upper_link" length="${arm_upper_length}"
+                       size_x="${arm_link_thickness}" size_y="${arm_link_width}"
+                       mass="${arm_upper_mass}" color="orange"/>
+    <xacro:arm_revolute_joint name="arm_shoulder_pitch_joint" parent="arm_turret_link"
+        child="arm_upper_link" z="${arm_turret_length}" axis="0 1 0"
+        lower="${arm_shoulder_lower}" upper="${arm_shoulder_upper}"
+        velocity="${arm_shoulder_velocity}" effort="${arm_shoulder_effort}"/>
+
+    <!-- Joint 3: wrist pitch -->
+    <xacro:arm_segment name="arm_wrist_link" length="${arm_wrist_length}"
+                       size_x="${arm_link_thickness}" size_y="${arm_link_width}"
+                       mass="${arm_wrist_mass}" color="orange"/>
+    <xacro:arm_revolute_joint name="arm_wrist_pitch_joint" parent="arm_upper_link"
+        child="arm_wrist_link" z="${arm_upper_length}" axis="0 1 0"
+        lower="${arm_wrist_lower}" upper="${arm_wrist_upper}"
+        velocity="${arm_wrist_velocity}" effort="${arm_wrist_effort}"/>
+
+    <!-- End effector: camera (REP-103 body frame, x forward / y left / z up) -->
+    <joint name="camera_joint" type="fixed">
+      <parent link="arm_wrist_link"/>
+      <child link="camera_link"/>
+      <origin xyz="${camera_offset_x} ${camera_offset_y} ${arm_wrist_length + camera_offset_z}"
+              rpy="${camera_roll} ${camera_pitch} ${camera_yaw}"/>
+    </joint>
+    <!-- camera_link origin = centre of the back face; the body extends along +x. -->
+    <link name="camera_link">
+      <visual>
+        <origin xyz="${camera_size_x/2} 0 0" rpy="0 0 0"/>
+        <geometry><box size="${camera_size_x} ${camera_size_y} ${camera_size_z}"/></geometry>
+        <material name="arm_dark"/>
+      </visual>
+      <collision>
+        <origin xyz="${camera_size_x/2} 0 0" rpy="0 0 0"/>
+        <geometry><box size="${camera_size_x} ${camera_size_y} ${camera_size_z}"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="${camera_size_x/2} 0 0" rpy="0 0 0"/>
+        <mass value="${camera_mass}"/>
+        <inertia ixx="${(camera_mass/12)*(camera_size_y*camera_size_y + camera_size_z*camera_size_z)}"
+                 ixy="0.0" ixz="0.0"
+                 iyy="${(camera_mass/12)*(camera_size_x*camera_size_x + camera_size_z*camera_size_z)}"
+                 iyz="0.0"
+                 izz="${(camera_mass/12)*(camera_size_x*camera_size_x + camera_size_y*camera_size_y)}"/>
+      </inertial>
+    </link>
+
+    <!-- Optical frame (REP-103 optical: z forward, x right, y down) for camera drivers -->
+    <link name="camera_optical_frame"/>
+    <joint name="camera_optical_joint" type="fixed">
+      <parent link="camera_link"/>
+      <child link="camera_optical_frame"/>
+      <origin xyz="${camera_size_x} 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+  </xacro:macro>
+
+</robot>

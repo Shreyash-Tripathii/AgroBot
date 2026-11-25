@@ -1,0 +1,19 @@
+# Removes the camera arm from the RPLidar scan so Nav2 / SLAM don't treat it as an obstacle.
+# Used by laser.launch.py (filter_arm:=true): /scan_raw -> this chain -> /scan.
+# KEEP IN SYNC with agrobot_description/urdf/agrobot_arm_params.xacro: the box must cover
+# the arm's mount footprint and its swing (yaw +/- pi/2 sweeps a circle of radius
+# ~ upper/wrist reach around the mount). Frame is base_link (x forward, z up).
+scan_to_scan_filter_chain:
+  ros__parameters:
+    filter1:
+      name: arm_box
+      type: laser_filters/LaserScanBoxFilter
+      params:
+        box_frame: base_link
+        min_x: -0.22
+        max_x: -0.02
+        min_y: -0.10
+        max_y: 0.10
+        min_z: -0.10
+        max_z: 0.50
+        invert: false

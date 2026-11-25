@@ -17,6 +17,7 @@ import time
 
 import serial
 from launch import LaunchDescription
+from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -132,6 +133,10 @@ def launch_setup(context, *args, **kwargs):
             *esp_link_logs(others, esp_fallback, esp_fallback),
         ]
 
+    # filter_arm: lidar publishes /scan_raw; a box filter drops the arm and republishes /scan,
+    # so Nav2 / SLAM / EKF configs keep using /scan unchanged.
+    filter_arm = LaunchConfiguration("filter_arm").perform(context).lower() == "true"
+
     lidar_node = Node(
         package="sllidar_ros2",
         executable="sllidar_node",
@@ -145,12 +150,25 @@ def launch_setup(context, *args, **kwargs):
             "inverted": LaunchConfiguration("inverted"),
             "angle_compensate": True,
         }],
+        remappings=[("scan", "scan_raw")] if filter_arm else [],
     )
+    filter_nodes = []
+    if filter_arm:
+        filter_nodes.append(Node(
+            package="laser_filters",
+            executable="scan_to_scan_filter_chain",
+            name="scan_to_scan_filter_chain",  # must match the key in laser_filter.yaml
+            output="screen",
+            parameters=[os.path.join(
+                get_package_share_directory("agrobot_bringup"), "config", "laser_filter.yaml")],
+            remappings=[("scan", "scan_raw"), ("scan_filtered", "scan")],
+        ))
     return [
         LogInfo(msg=f"[rplidar_autodetect] RPLidar found on {lidar_port}"),
         LogInfo(msg=f"[rplidar_autodetect] Remaining ttyUSB ports (ESP32 candidate): {others}"),
         *esp_link_logs(others, esp_link, esp_fallback),
         lidar_node,
+        *filter_nodes,
     ]
 
 def generate_launch_description():
@@ -164,5 +182,7 @@ def generate_launch_description():
                               description="Symlink to create for the non-lidar port"),
         DeclareLaunchArgument("esp32_symlink_fallback", default_value="/tmp/esp32",
                               description="Used if esp32_symlink can't be created (no root)"),
+        DeclareLaunchArgument("filter_arm", default_value="true",
+                              description="Mask the camera arm out of the scan (/scan_raw -> /scan)"),
         OpaqueFunction(function=launch_setup),
     ])
