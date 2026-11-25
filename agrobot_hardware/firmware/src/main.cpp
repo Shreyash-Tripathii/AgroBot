@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "driver/pulse_cnt.h"
+#include "esp_timer.h"
 
 // --- Configuration & Constants ---
 #define LOOP_FREQ_HZ 50
@@ -39,17 +40,31 @@ const int SERVO_LEDC_CH[NUM_SERVOS] = {8, 9, 10};
 // line with the host's comm_timeout_ms (default 500).
 #define LINK_TIMEOUT_MS 500
 
+// --- Comms ---
+#define RX_BUF_SIZE 512              // host -> ESP32 reassembly buffer (frames <= 21 B)
+#define COMMS_POLL_MS 2              // RX poll period (low command latency)
+#define TELEMETRY_PERIOD_US 10000LL  // wheel telemetry stays at 100 Hz
+#define STATUS_PERIOD_US 1000000LL   // diagnostics frame (AA 56) at 1 Hz
+#define STATUS_VERSION 1             // 1 = understands 0x03 servo frames
+
 // --- Thread Safety ---
 SemaphoreHandle_t state_mutex;
 float target_velocities[4] = {0, 0, 0, 0}; // rad/s
 float current_velocities[4] = {0, 0, 0, 0}; // rad/s
 uint32_t last_rx_ms = 0;     // millis() of the last valid packet (guarded by state_mutex)
 bool link_lost = true;       // true until the first valid packet (guarded by state_mutex)
+uint16_t servo_us_cmd[NUM_SERVOS] = {0, 0, 0}; // latest host pulse widths, 0 = off (state_mutex)
+
+// Diagnostics reported in the status frame. Each is written by ONE task only.
+volatile uint16_t stat_watchdog_trips = 0;     // PID task
+volatile uint16_t stat_pid_mutex_misses = 0;   // PID task
+volatile uint16_t stat_pid_max_period_us = 0;  // PID task, max wake-to-wake time of the last second
 
 // --- Servo Output ---
 class ServoOutput {
 private:
     int pin;
+    uint16_t last_us = 0;   // last pulse written (0 = off): LEDC is only touched on change
 public:
     explicit ServoOutput(int p_pin, int channel) : pin(p_pin) {
         ledcAttachChannel(pin, SERVO_FREQ, SERVO_RES, channel);
@@ -57,12 +72,15 @@ public:
     }
     // 0 = output off (servo limp); otherwise pulse width clamped to 500..2500 us.
     void setPulseUs(uint16_t us) {
-        if (us == 0) { ledcWrite(pin, 0); return; }
-        if (us < SERVO_MIN_US) us = SERVO_MIN_US;
-        if (us > SERVO_MAX_US) us = SERVO_MAX_US;
-        ledcWrite(pin, (uint32_t)(((uint64_t)us << SERVO_RES) / SERVO_PERIOD_US));
+        if (us != 0) {
+            if (us < SERVO_MIN_US) us = SERVO_MIN_US;
+            if (us > SERVO_MAX_US) us = SERVO_MAX_US;
+        }
+        if (us == last_us) return;
+        last_us = us;
+        ledcWrite(pin, us == 0 ? 0 : (uint32_t)(((uint64_t)us << SERVO_RES) / SERVO_PERIOD_US));
     }
-    void release() { ledcWrite(pin, 0); }
+    void release() { setPulseUs(0); }
 };
 
 ServoOutput* servos[NUM_SERVOS];
@@ -73,6 +91,23 @@ struct __attribute__((packed)) TxSerialPacket {
     float velocities[4];
     uint16_t checksum;
 };
+
+// --- Diagnostics frame, ESP32 -> host, 1 Hz (23 B). Own header (AA 56) so the AA 55
+// telemetry stream is untouched. Checksum = Fletcher-16 over the 19 bytes after the header.
+struct __attribute__((packed)) StatusPacket {
+    uint8_t header[2] = {0xAA, 0x56};
+    uint8_t version = STATUS_VERSION;
+    uint32_t uptime_ms;
+    uint16_t watchdog_trips;      // cumulative
+    uint16_t rx_frames;           // cumulative valid host frames
+    uint16_t rx_bad_checksum;     // cumulative
+    uint16_t rx_skipped_bytes;    // cumulative
+    uint16_t max_pass_us;         // longest RX parse pass in the last second
+    uint16_t max_pid_period_us;   // longest PID wake-to-wake gap in the last second (20000 nominal)
+    uint16_t pid_mutex_misses;    // cumulative
+    uint16_t checksum;
+};
+static_assert(sizeof(StatusPacket) == 23, "StatusPacket must be 23 bytes");
 
 // --- Motor Controller Class ---
 class MotorController {
@@ -195,25 +230,52 @@ void pidControlTask(void *pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(1000 / LOOP_FREQ_HZ);
 
     float local_targets[4] = {0, 0, 0, 0};
+    uint16_t local_servo[NUM_SERVOS] = {0, 0, 0};
     bool lost = true;  // fail safe if the mutex is never obtained
+
+    int64_t last_wake_us = esp_timer_get_time();
+    uint16_t window_max_period = 0;
+    int window_cycles = 0;
 
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        // Timing diagnostics: wake-to-wake gap, max over each 1 s window.
+        int64_t now_us = esp_timer_get_time();
+        int64_t period_us = now_us - last_wake_us;
+        last_wake_us = now_us;
+        uint16_t p = period_us > 65535 ? 65535 : (uint16_t)period_us;
+        if (p > window_max_period) window_max_period = p;
+        if (++window_cycles >= LOOP_FREQ_HZ) {
+            stat_pid_max_period_us = window_max_period;
+            window_max_period = 0;
+            window_cycles = 0;
+        }
 
         if (xSemaphoreTake(state_mutex, 0) == pdTRUE) {
             // Watchdog: runs here (core 1) so it still fires if the comms task stalls.
             if (!link_lost && (uint32_t)(millis() - last_rx_ms) > LINK_TIMEOUT_MS) {
                 link_lost = true;
+                stat_watchdog_trips = stat_watchdog_trips + 1;
             }
             if (link_lost) {
-                // Latched until the next valid packet. Zero the setpoints and
-                // release the servos (re-asserted every cycle; it is idempotent).
+                // Latched until the next valid packet: zero the setpoints and the servo
+                // commands (so stale pulses can't resume without a fresh 0x03 frame).
                 memset(target_velocities, 0, sizeof(target_velocities));
-                for (int i = 0; i < NUM_SERVOS; i++) servos[i]->release();
+                memset(servo_us_cmd, 0, sizeof(servo_us_cmd));
             }
             lost = link_lost;
             memcpy(local_targets, target_velocities, sizeof(target_velocities));
+            memcpy(local_servo, servo_us_cmd, sizeof(servo_us_cmd));
             xSemaphoreGive(state_mutex);
+        } else {
+            stat_pid_mutex_misses = stat_pid_mutex_misses + 1;
+        }
+
+        // All LEDC servo writes happen here (never under the mutex, never in the comms
+        // task). setPulseUs() only touches the hardware when the pulse changes.
+        for (int i = 0; i < NUM_SERVOS; i++) {
+            servos[i]->setPulseUs(lost ? 0 : local_servo[i]);
         }
 
         float local_currents[4];
@@ -238,64 +300,70 @@ uint16_t computeChecksum(const uint8_t* data, size_t length) {
     return (sum2 << 8) | sum1;
 }
 
-// Waits (max 10 ms) until `n` bytes are buffered. Returns false on timeout.
-static bool waitForBytes(int n) {
-    uint32_t t0 = millis();
-    while (Serial.available() < n && (millis() - t0 < 10)) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    return Serial.available() >= n;
-}
-
 // Marks the link alive. Caller must hold state_mutex.
 static inline void markLinkAlive() {
     last_rx_ms = millis();
     link_lost = false;
 }
 
-// Reads and handles ONE host packet if a header is pending. Packets (all start AA 55,
-// checksum = Fletcher-16 over type + payload):
+// Host -> ESP32 frame sizes (all start AA 55, Fletcher-16 over type + payload):
 //   0x01 velocity : 4 x float rad/s                  (21 B total)
 //   0x02 PID gains: motor_id u8, kp, ki, kd floats   (18 B total)
 //   0x03 servos   : 3 x uint16 pulse us, 0 = off     (11 B total)
-static void handleHostPacket() {
-    if (Serial.read() != 0xAA || Serial.peek() != 0x55) return;
-    Serial.read(); // Consume 0x55
-    uint8_t type = Serial.read();
-
-    if (type == 0x01) {
-        if (!waitForBytes(18)) return;
-        uint8_t payload[16];
-        Serial.readBytes((char*)payload, 16);
-        uint16_t checksum;
-        Serial.readBytes((char*)&checksum, 2);
-
-        uint8_t crc_buf[17];
-        crc_buf[0] = type;
-        memcpy(&crc_buf[1], payload, 16);
-        if (computeChecksum(crc_buf, 17) == checksum) {
-            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
-                memcpy(target_velocities, payload, 16);
-                markLinkAlive();
-                xSemaphoreGive(state_mutex);
-            }
-        }
+static size_t frameSize(uint8_t type) {
+    switch (type) {
+        case 0x01: return 21;
+        case 0x02: return 18;
+        case 0x03: return 11;
+        default:   return 0;
     }
-    else if (type == 0x02) {
-        if (!waitForBytes(15)) return;
-        uint8_t payload[13]; // MotorID (1) + 3x Floats (12)
-        Serial.readBytes((char*)payload, 13);
-        uint16_t checksum;
-        Serial.readBytes((char*)&checksum, 2);
+}
 
-        uint8_t crc_buf[14];
-        crc_buf[0] = type;
-        memcpy(&crc_buf[1], payload, 13);
-        if (computeChecksum(crc_buf, 14) == checksum) {
-            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
-                markLinkAlive();
-                xSemaphoreGive(state_mutex);
-            }
+// Reassembly buffer + counters (comms task only).
+static uint8_t rx_buf[RX_BUF_SIZE];
+static size_t rx_len = 0;
+static uint16_t rx_frames = 0, rx_bad_ck = 0, rx_skipped = 0, pass_max_us = 0;
+
+// Non-blocking: moves whatever the UART has into rx_buf, parses every complete frame
+// (junk is skipped in one sweep, partial frames wait for the next pass, nothing
+// sleeps), then commits only the NEWEST velocity / servo frame under the mutex so a
+// backlog can never replay stale commands.
+static void processRx() {
+    int64_t t0 = esp_timer_get_time();
+
+    int avail = Serial.available();
+    if (avail > 0) {
+        size_t space = RX_BUF_SIZE - rx_len;
+        size_t n = (size_t)avail < space ? (size_t)avail : space;
+        rx_len += Serial.readBytes((char*)rx_buf + rx_len, n);
+    }
+
+    float latest_vel[4];
+    uint16_t latest_servo[NUM_SERVOS];
+    bool got_vel = false, got_servo = false, got_any = false;
+
+    size_t pos = 0;
+    while (rx_len - pos >= 3) {
+        if (rx_buf[pos] != 0xAA || rx_buf[pos + 1] != 0x55) { pos++; rx_skipped++; continue; }
+        uint8_t type = rx_buf[pos + 2];
+        size_t n = frameSize(type);
+        if (n == 0) { pos += 2; rx_skipped += 2; continue; }   // unknown type: re-sync
+        if (rx_len - pos < n) break;                           // partial frame: wait
+
+        uint16_t checksum;
+        memcpy(&checksum, &rx_buf[pos + n - 2], 2);
+        if (computeChecksum(&rx_buf[pos + 2], n - 4) != checksum) {
+            rx_bad_ck++;  // false header inside a payload, or corruption: slip one byte
+            pos++;
+            rx_skipped++;
+            continue;
+        }
+
+        const uint8_t* payload = &rx_buf[pos + 3];
+        if (type == 0x01) {
+            memcpy(latest_vel, payload, 16);
+            got_vel = true;
+        } else if (type == 0x02) {
             uint8_t motor_id = payload[0];
             if (motor_id < 4) {
                 float p, i, d;
@@ -304,58 +372,75 @@ static void handleHostPacket() {
                 memcpy(&d, &payload[9], 4);
                 motors[motor_id]->updatePID(p, i, d);
             }
+        } else {  // 0x03
+            memcpy(latest_servo, payload, sizeof(latest_servo));
+            got_servo = true;
         }
+        got_any = true;
+        rx_frames++;
+        pos += n;
     }
-    else if (type == 0x03) {
-        if (!waitForBytes(8)) return;
-        uint8_t payload[6]; // 3 x uint16 pulse width (us), little endian
-        Serial.readBytes((char*)payload, 6);
-        uint16_t checksum;
-        Serial.readBytes((char*)&checksum, 2);
 
-        uint8_t crc_buf[7];
-        crc_buf[0] = type;
-        memcpy(&crc_buf[1], payload, 6);
-        if (computeChecksum(crc_buf, 7) == checksum) {
-            // Applied under the mutex so it can't race the watchdog's release().
-            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
-                markLinkAlive();
-                for (int s = 0; s < NUM_SERVOS; s++) {
-                    uint16_t us;
-                    memcpy(&us, &payload[2 * s], 2);
-                    servos[s]->setPulseUs(us);
-                }
-                xSemaphoreGive(state_mutex);
-            }
-        }
+    if (pos > 0) {
+        rx_len -= pos;
+        memmove(rx_buf, rx_buf + pos, rx_len);
     }
-    // Unknown type: header + type already consumed; the parser re-syncs on the next 0xAA 0x55.
+
+    if (got_any && xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
+        if (got_vel) memcpy(target_velocities, latest_vel, sizeof(latest_vel));
+        if (got_servo) memcpy(servo_us_cmd, latest_servo, sizeof(latest_servo));
+        markLinkAlive();
+        xSemaphoreGive(state_mutex);
+    }
+
+    int64_t dt = esp_timer_get_time() - t0;
+    uint16_t d = dt > 65535 ? 65535 : (uint16_t)dt;
+    if (d > pass_max_us) pass_max_us = d;
 }
 
 void serialCommsTask(void *pvParameters) {
     TxSerialPacket tx_packet;
+    int64_t last_tx_us = 0, last_status_us = 0;
 
     while (true) {
-        // Drain every pending packet (host sends velocity + servo [+ gains] per cycle);
-        // bounded so telemetry TX can't be starved by a flooding host.
-        for (int n = 0; n < 8 && Serial.available() >= 3; n++) {
-            handleHostPacket();
+        processRx();
+
+        int64_t now = esp_timer_get_time();
+
+        // Wheel telemetry at 100 Hz (unchanged format)
+        if (now - last_tx_us >= TELEMETRY_PERIOD_US) {
+            last_tx_us = now;
+            if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
+                memcpy(tx_packet.velocities, current_velocities, sizeof(current_velocities));
+                xSemaphoreGive(state_mutex);
+            }
+            tx_packet.checksum = computeChecksum((uint8_t*)tx_packet.velocities, 16);
+            Serial.write((uint8_t*)&tx_packet, sizeof(TxSerialPacket));
         }
 
-        // Transmit current velocities
-        if (xSemaphoreTake(state_mutex, portMAX_DELAY) == pdTRUE) {
-            memcpy(tx_packet.velocities, current_velocities, sizeof(current_velocities));
-            xSemaphoreGive(state_mutex);
+        // Diagnostics + capability announcement at 1 Hz
+        if (now - last_status_us >= STATUS_PERIOD_US) {
+            last_status_us = now;
+            StatusPacket st;
+            st.uptime_ms = (uint32_t)(now / 1000);
+            st.watchdog_trips = stat_watchdog_trips;
+            st.rx_frames = rx_frames;
+            st.rx_bad_checksum = rx_bad_ck;
+            st.rx_skipped_bytes = rx_skipped;
+            st.max_pass_us = pass_max_us;
+            st.max_pid_period_us = stat_pid_max_period_us;
+            st.pid_mutex_misses = stat_pid_mutex_misses;
+            pass_max_us = 0;
+            st.checksum = computeChecksum((uint8_t*)&st + 2, sizeof(StatusPacket) - 4);
+            Serial.write((uint8_t*)&st, sizeof(StatusPacket));
         }
 
-        tx_packet.checksum = computeChecksum((uint8_t*)tx_packet.velocities, 16);
-        Serial.write((uint8_t*)&tx_packet, sizeof(TxSerialPacket));
-
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(COMMS_POLL_MS));
     }
 }
 
 void setup() {
+    Serial.setRxBufferSize(1024);  // must precede begin(); headroom only
     Serial.begin(500000);
     state_mutex = xSemaphoreCreateMutex();
     last_rx_ms = millis();
