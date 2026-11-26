@@ -1,0 +1,28 @@
+{
+  "name": "agrobot-arm-planner",
+  "displayName": "AgroBotArmPlanner",
+  "description": "MoveIt-style arm planner panel: arm model, draggable ball end effector, presets, plan and execute",
+  "publisher": "agrobot",
+  "homepage": "https://github.com/",
+  "license": "MIT",
+  "version": "0.1.0",
+  "main": "./dist/extension.js",
+  "keywords": [],
+  "scripts": {
+    "build": "foxglove-extension build",
+    "foxglove:prepublish": "foxglove-extension build --mode production",
+    "local-install": "foxglove-extension install",
+    "package": "foxglove-extension package",
+    "pretest": "foxglove-extension pretest"
+  },
+  "devDependencies": {
+    "@foxglove/extension": "^2.0.0",
+    "@types/three": "^0.160.0",
+    "create-foxglove-extension": "^1.0.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "three": "^0.160.0",
+    "urdf-loader": "^0.12.0"
+  }
+}

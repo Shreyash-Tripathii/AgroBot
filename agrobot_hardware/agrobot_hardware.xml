@@ -6,4 +6,11 @@
       Custom 50Hz serial hardware interface for the Agrobot ESP32 4WD motor controller.
     </description>
   </class>
+  <class name="agrobot_hardware/BNO085SensorInterface"
+         type="agrobot_hardware::BNO085SensorInterface"
+         base_class_type="hardware_interface::SensorInterface">
+    <description>
+      BNO085 IMU over Linux I2C (SHTP) with a background reader thread and GPIO reset.
+    </description>
+  </class>
 </library>

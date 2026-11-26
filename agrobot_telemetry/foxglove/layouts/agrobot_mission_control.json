@@ -1,0 +1,306 @@
+{
+  "configById": {
+    "3D!fad58de": {
+      "layers": {
+        "ff4a0084-7031-9a22-d9cf-3d14af485977": {
+          "layerId": "foxglove.Grid",
+          "instanceId": "ff4a0084-7031-9a22-d9cf-3d14af485977",
+          "visible": true,
+          "label": "Grid",
+          "frameLocked": true,
+          "size": 30,
+          "divisions": 30,
+          "lineWidth": 1,
+          "color": "#3a4a5c",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "51d146a5-f2e5-bec8-2581-0535ab439b1a": {
+          "layerId": "foxglove.Urdf",
+          "instanceId": "51d146a5-f2e5-bec8-2581-0535ab439b1a",
+          "visible": true,
+          "label": "AgroBot",
+          "sourceType": "topic",
+          "topic": "/robot_description",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        }
+      },
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.5,
+        "phi": 60,
+        "thetaOffset": 35,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 2000
+      },
+      "followMode": "follow-position",
+      "followTf": "base_footprint",
+      "scene": {
+        "backgroundColor": "#12161c",
+        "enableStats": false,
+        "labelScaleFactor": 1,
+        "transforms": {
+          "showLabel": false,
+          "editable": false,
+          "axisScale": 0.2,
+          "lineWidth": 0.02
+        }
+      },
+      "topics": {
+        "/scan": {
+          "visible": true,
+          "colorMode": "flat",
+          "flatColor": "#22d3eeff",
+          "pointSize": 3,
+          "pointShape": "circle",
+          "decayTime": 0.1
+        },
+        "/map": {
+          "visible": true,
+          "colorMode": "map",
+          "alpha": 0.85,
+          "frameLocked": false
+        },
+        "/local_costmap/costmap": {
+          "visible": true,
+          "colorMode": "costmap",
+          "alpha": 0.45,
+          "frameLocked": true
+        },
+        "/global_costmap/costmap": {
+          "visible": false,
+          "colorMode": "costmap",
+          "alpha": 0.35
+        },
+        "/plan": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.06,
+          "gradient": [
+            "#00e676ff",
+            "#00e676ff"
+          ]
+        },
+        "/local_plan": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.05,
+          "gradient": [
+            "#ff4081ff",
+            "#ff4081ff"
+          ]
+        },
+        "/local_costmap/published_footprint": {
+          "visible": true,
+          "color": "#00e676ff"
+        },
+        "/odometry/filtered": {
+          "visible": true
+        }
+      },
+      "publish": {
+        "type": "pose",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26
+      },
+      "foxglovePanelTitle": "Robot / Map / Plans"
+    },
+    "Image!dd6d2dc": {
+      "imageMode": {
+        "imageTopic": "/camera/image_raw/compressed",
+        "calibrationTopic": "/camera/camera_info"
+      },
+      "foxglovePanelTitle": "Arm camera"
+    },
+    "Plot!ce4ef3e": {
+      "paths": [
+        {
+          "value": "/cmd_vel.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "cmd_vel",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/odometry/filtered.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/agrobot_base_controller/odom.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "wheel odom",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 20,
+      "foxglovePanelTitle": "Linear speed (m/s)",
+      "minYValue": -0.8,
+      "maxYValue": 0.8
+    },
+    "Plot!92dda64": {
+      "paths": [
+        {
+          "value": "/cmd_vel.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "cmd_vel",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.angular_velocity.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "IMU gyro",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/odometry/filtered.twist.twist.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 20,
+      "foxglovePanelTitle": "Yaw rate (rad/s)",
+      "minYValue": -2.5,
+      "maxYValue": 2.5
+    },
+    "Teleop!b9fc6fd": {
+      "topic": "/cmd_vel",
+      "publishRate": 10,
+      "upButton": {
+        "field": "linear-x",
+        "value": 0.3
+      },
+      "downButton": {
+        "field": "linear-x",
+        "value": -0.3
+      },
+      "leftButton": {
+        "field": "angular-z",
+        "value": 0.8
+      },
+      "rightButton": {
+        "field": "angular-z",
+        "value": -0.8
+      },
+      "foxglovePanelTitle": "Drive"
+    },
+    "DiagnosticSummary!776e6c3": {
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "topicToRender": "/diagnostics",
+      "sortByLevel": true,
+      "foxglovePanelTitle": "Health"
+    },
+    "AgroBotArmPlanner.Arm Planner!663f224": {
+      "foxglovePanelTitle": "Arm planner"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "3D!fad58de",
+      "second": {
+        "direction": "row",
+        "first": "Teleop!b9fc6fd",
+        "second": {
+          "direction": "row",
+          "first": "Plot!ce4ef3e",
+          "second": {
+            "direction": "row",
+            "first": "Plot!92dda64",
+            "second": "DiagnosticSummary!776e6c3",
+            "splitPercentage": 55
+          },
+          "splitPercentage": 50
+        },
+        "splitPercentage": 16
+      },
+      "splitPercentage": 68
+    },
+    "second": {
+      "direction": "column",
+      "first": "Image!dd6d2dc",
+      "second": "AgroBotArmPlanner.Arm Planner!663f224",
+      "splitPercentage": 30
+    },
+    "splitPercentage": 64
+  }
+}

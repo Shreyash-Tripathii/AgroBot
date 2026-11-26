@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Static primitive model. gz-sim-label-system tags it with label 3; a gz segmentation
+     or bounding-box camera pointed at the field then reports it as class 3
+     (1 = cabbage, 2 = tomato plant, 3 = carrot) for scoring an OpenCV detector. -->
+<sdf version="1.9">
+  <model name="carrot">
+    <static>true</static>
+    <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+      <label>3</label>
+    </plugin>
+    <link name="link">
+      <visual name='foliage'><pose>0 0 0.10 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>0.2</length></cylinder></geometry><material><ambient>0.25 0.62 0.15 1</ambient><diffuse>0.25 0.62 0.15 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='crown'><pose>0 0 0.01 0 0 0</pose><geometry><cylinder><radius>0.03</radius><length>0.03</length></cylinder></geometry><material><ambient>0.95 0.5 0.08 1</ambient><diffuse>0.95 0.5 0.08 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <collision name='c'><pose>0 0 0.10 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>0.2</length></cylinder></geometry></collision>
+    </link>
+  </model>
+</sdf>

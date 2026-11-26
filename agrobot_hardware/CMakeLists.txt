@@ -13,6 +13,8 @@ find_package(rclcpp_lifecycle REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/esp32_system_interface.cpp
+  src/bno085_shtp.cpp
+  src/bno085_sensor_interface.cpp
 )
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 ament_target_dependencies(${PROJECT_NAME}
@@ -32,6 +34,13 @@ install(TARGETS ${PROJECT_NAME}
 install(DIRECTORY include/
   DESTINATION include
 )
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_bno085_shtp test/test_bno085_shtp.cpp)
+  target_include_directories(test_bno085_shtp PRIVATE include)
+  target_link_libraries(test_bno085_shtp ${PROJECT_NAME})
+endif()
 
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})

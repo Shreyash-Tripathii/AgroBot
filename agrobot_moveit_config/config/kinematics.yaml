@@ -1,0 +1,19 @@
+# pick_ik inverse kinematics for the 3-DOF camera arm.
+#
+# A 3-DOF arm cannot reach arbitrary 6-D poses, so by default the solver only scores POSITION:
+# drag the camera (RViz interactive marker) or send a position goal and the arm gets the camera
+# there. Raise rotation_scale (e.g. 0.3) if you also want it to weigh camera orientation.
+# For exact orientation use joint-space goals / the named poses in agrobot.srdf instead.
+arm:
+  kinematics_solver: pick_ik/PickIkPlugin
+  kinematics_solver_timeout: 0.05
+  kinematics_solver_attempts: 3
+  mode: global
+  stop_optimization_on_valid_solution: true
+  position_scale: 1.0
+  rotation_scale: 0.0
+  position_threshold: 0.002
+  orientation_threshold: 0.1
+  cost_threshold: 0.001
+  minimal_displacement_weight: 0.0
+  gd_step_size: 0.0001

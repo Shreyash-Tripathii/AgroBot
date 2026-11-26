@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: agrobot_description
+    relative_path: urdf/agrobot.urdf.xacro
+    xacro_args: use_ros2_control:=false use_arm:=true use_imu:=false
+  srdf:
+    relative_path: config/agrobot.srdf
+  package_settings:
+    author_name: Shreyash
+    author_email: shreyash5600@gmail.com
+    generated_timestamp: 1795626808

@@ -77,4 +77,161 @@
     </ros2_control>
     </xacro:macro>
 
+    <!--
+     BNO085 IMU. Two outputs share one chip and one I2C reader thread:
+       imu_game  Game Rotation Vector (no magnetometer)  -> /imu/data_game (EKF, yaw hold)
+       imu_mag   Rotation Vector (absolute heading)      -> /imu/data_mag  (initial GPS fix)
+     mock:=true replaces the chip with mock_components/GenericSystem (identity orientation)
+     for bench / PC tests without hardware.
+    -->
+    <xacro:macro name="agrobot_imu_ros2_control" params="mock:=false i2c_bus:=3 i2c_address:=0x4A reset_gpio:=4 game_rate_hz:=100 mag_rate_hz:=5">
+    <xacro:if value="${mock}">
+    <ros2_control name="BNO085Mock" type="system">
+    <hardware>
+    <plugin>mock_components/GenericSystem</plugin>
+    </hardware>
+    <sensor name="imu_game">
+      <state_interface name="orientation.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.z"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.w"><param name="initial_value">1.0</param></state_interface>
+      <state_interface name="angular_velocity.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="angular_velocity.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="angular_velocity.z"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.z"><param name="initial_value">0.0</param></state_interface>
+    </sensor>
+    <sensor name="imu_mag">
+      <state_interface name="orientation.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.z"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="orientation.w"><param name="initial_value">1.0</param></state_interface>
+      <state_interface name="angular_velocity.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="angular_velocity.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="angular_velocity.z"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.x"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.y"><param name="initial_value">0.0</param></state_interface>
+      <state_interface name="linear_acceleration.z"><param name="initial_value">0.0</param></state_interface>
+    </sensor>
+    </ros2_control>
+    </xacro:if>
+    <xacro:unless value="${mock}">
+    <ros2_control name="BNO085" type="sensor">
+    <hardware>
+    <plugin>agrobot_hardware/BNO085SensorInterface</plugin>
+    <param name="i2c_bus">${i2c_bus}</param>
+    <param name="i2c_address">${i2c_address}</param>
+    <param name="reset_gpio">${reset_gpio}</param>
+    <param name="game_rate_hz">${game_rate_hz}</param>
+    <param name="mag_rate_hz">${mag_rate_hz}</param>
+    </hardware>
+    <sensor name="imu_game">
+    <param name="source">game</param>
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+    <sensor name="imu_mag">
+    <param name="source">absolute</param>
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+    </ros2_control>
+    </xacro:unless>
+    </xacro:macro>
+
+    <!--
+     Gazebo (gz sim) counterpart of agrobot_ros2_control + agrobot_imu_ros2_control: the same
+     joints, command/state interfaces and sensor names, so the same controllers.yaml works.
+     Differences: no kp/ki/kd (Gazebo has no ESP32 PID, so fuzzy_gain_scheduler is not used)
+     and the IMUs come from gz sensors named imu_game / imu_mag (see agrobot.gazebo.xacro).
+     `controllers` / `override` are absolute yaml paths (override wins; may be empty).
+     position_gain: gz_ros2_control converts position commands to a velocity with a P term
+     applied per control step, so it must stay below 1 (0.3 => ~60 ms settling at 50 Hz).
+    -->
+    <xacro:macro name="agrobot_gz_ros2_control" params="use_arm:=true controllers override position_gain:=0.3">
+    <ros2_control name="AgrobotGazeboSystem" type="system">
+    <hardware>
+    <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <xacro:macro name="gz_wheel" params="name">
+    <joint name="${name}">
+    <command_interface name="velocity"/>
+    <state_interface name="velocity"/>
+    <state_interface name="position"/>
+    </joint>
+    </xacro:macro>
+    <xacro:gz_wheel name="front_left_wheel_joint"/>
+    <xacro:gz_wheel name="front_right_wheel_joint"/>
+    <xacro:gz_wheel name="rear_left_wheel_joint"/>
+    <xacro:gz_wheel name="rear_right_wheel_joint"/>
+    <xacro:if value="${use_arm}">
+    <xacro:macro name="gz_arm_joint" params="name lower upper home">
+    <joint name="${name}">
+    <command_interface name="position">
+    <param name="min">${lower}</param>
+    <param name="max">${upper}</param>
+    </command_interface>
+    <state_interface name="position">
+    <param name="initial_value">${home}</param>
+    </state_interface>
+    <state_interface name="velocity"/>
+    </joint>
+    </xacro:macro>
+    <xacro:gz_arm_joint name="arm_base_yaw_joint" lower="${arm_yaw_lower}" upper="${arm_yaw_upper}" home="${arm_yaw_home}"/>
+    <xacro:gz_arm_joint name="arm_shoulder_pitch_joint" lower="${arm_shoulder_lower}" upper="${arm_shoulder_upper}" home="${arm_shoulder_home}"/>
+    <xacro:gz_arm_joint name="arm_wrist_pitch_joint" lower="${arm_wrist_lower}" upper="${arm_wrist_upper}" home="${arm_wrist_home}"/>
+    </xacro:if>
+    <sensor name="imu_game">
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+    <sensor name="imu_mag">
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+    </ros2_control>
+    <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+    <parameters>${controllers}</parameters>
+    <xacro:unless value="${override == ''}">
+    <parameters>${override}</parameters>
+    </xacro:unless>
+    <position_proportional_gain>${position_gain}</position_proportional_gain>
+    </plugin>
+    </gazebo>
+    </xacro:macro>
+
 </robot>

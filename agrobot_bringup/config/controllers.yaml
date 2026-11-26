@@ -8,14 +8,23 @@ controller_manager:
     agrobot_base_controller:
       type: diff_drive_controller/DiffDriveController
 
-    kp_controller:
-      type: forward_command_controller/ForwardCommandController
+    # IMU: BNO085 hardware component (agrobot_hardware) -> sensor broadcasters
+    imu_game_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
-    ki_controller:
-      type: forward_command_controller/ForwardCommandController
+    imu_mag_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
-    kd_controller:
-      type: forward_command_controller/ForwardCommandController
+    # Drive chain (head -> tail):
+    #   yaw_heading_controller -> fuzzy_gain_scheduler -> agrobot_base_controller -> wheels
+    # The first two are chainable controllers from agrobot_controllers. They hand each other
+    # the velocity command through reference interfaces in the same 50 Hz cycle, so there
+    # are no topic hops between the IMU, the heading hold, the PID scheduler and the drive.
+    yaw_heading_controller:
+      type: agrobot_controllers/YawHeadingController
+
+    fuzzy_gain_scheduler:
+      type: agrobot_controllers/FuzzyGainScheduler
 
     # 3-DOF camera arm (only spawned when use_arm:=true). Both claim the arm joints'
     # "position" command interface, so run ONE at a time:
@@ -36,7 +45,7 @@ agrobot_base_controller:
     wheel_radius: 0.0325
     # Skid-steer scrubs, so the effective track is wider than the geometric one.
     # Tune empirically (rotate in place, compare odom yaw to real yaw). If you change
-    # this, set the same value on the gain scheduler node.
+    # this, set the same value (wheel_separation) on fuzzy_gain_scheduler.
     wheel_separation_multiplier: 1.0
     wheel_radius_multiplier: 1.0
 
@@ -48,39 +57,76 @@ agrobot_base_controller:
     position_feedback: true
     velocity_rolling_window_size: 10
 
+    # Tail of the chain: its velocity reference is written by fuzzy_gain_scheduler every
+    # cycle (chained mode), so the command timeout lives in yaw_heading_controller.
     cmd_vel_timeout: 0.5
-    # Jazzy diff_drive_controller takes geometry_msgs/TwistStamped only
 
     pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
     twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
 
-# The Float64MultiArray on /<name>/commands maps to `joints` BY INDEX, in this order.
-kp_controller:
+# ---------------------------------------------------------------------------
+# IMU broadcasters. The controller manager runs at 50 Hz, so /imu/data_game is published
+# at 50 Hz (the BNO085 itself samples at 100 Hz and read() takes the newest sample).
+# /imu/data_mag is only needed for the initial GPS heading fix, so it runs at 5 Hz.
+# Covariances are the values previously set in localization.launch.py.
+# ---------------------------------------------------------------------------
+imu_game_broadcaster:
   ros__parameters:
-    joints:
-      - front_left_wheel_joint
-      - front_right_wheel_joint
-      - rear_left_wheel_joint
-      - rear_right_wheel_joint
-    interface_name: kp
+    sensor_name: imu_game
+    frame_id: imu_link
+    static_covariance_orientation: [0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]
+    static_covariance_angular_velocity: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    static_covariance_linear_acceleration: [2.020e-03, 0.0, 0.0, 0.0, 2.020e-03, 0.0, 0.0, 0.0, 2.020e-03]
 
-ki_controller:
+imu_mag_broadcaster:
   ros__parameters:
-    joints:
-      - front_left_wheel_joint
-      - front_right_wheel_joint
-      - rear_left_wheel_joint
-      - rear_right_wheel_joint
-    interface_name: ki
+    update_rate: 5  # Hz (must divide the 50 Hz controller manager rate)
+    sensor_name: imu_mag
+    frame_id: imu_link
+    static_covariance_orientation: [0.01, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.01]
+    static_covariance_angular_velocity: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    static_covariance_linear_acceleration: [2.020e-03, 0.0, 0.0, 0.0, 2.020e-03, 0.0, 0.0, 0.0, 2.020e-03]
 
-kd_controller:
+# ---------------------------------------------------------------------------
+# Heading hold (head of the chain). Subscribes to /cmd_vel (plain Twist: teleop, Nav2,
+# global_localizer all publish Twist) and corrects the angular velocity from the IMU yaw.
+# ---------------------------------------------------------------------------
+yaw_heading_controller:
   ros__parameters:
-    joints:
-      - front_left_wheel_joint
-      - front_right_wheel_joint
-      - rear_left_wheel_joint
-      - rear_right_wheel_joint
-    interface_name: kd
+    imu_sensor: imu_game
+    output_controller: fuzzy_gain_scheduler
+    cmd_vel_topic: /cmd_vel
+    input_stamped: false          # true if your teleop sends TwistStamped on /cmd_vel
+    kp: 2.2
+    kd: 0.15
+    ki: 0.0
+    max_angular_vel: 2.0          # rad/s clamp
+    max_heading_error: 0.785      # ~45 deg anti-windup clamp
+    cmd_timeout: 0.5              # s without /cmd_vel -> stop
+    pass_through_without_imu: false  # true: drive without heading hold if the IMU is lost
+
+# ---------------------------------------------------------------------------
+# Fuzzy PID gain scheduler (middle of the chain). Retunes the wheel PID on the ESP32
+# at schedule_rate_hz and forwards the velocity command to the drive controller.
+# kp/ki/kd arrays: one entry per wheel in the order [left wheels..., right wheels...].
+# ---------------------------------------------------------------------------
+fuzzy_gain_scheduler:
+  ros__parameters:
+    output_controller: agrobot_base_controller
+    left_wheel_names: ["front_left_wheel_joint", "rear_left_wheel_joint"]
+    right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
+    wheel_radius: 0.0325
+    wheel_separation: 0.22        # keep equal to agrobot_base_controller's
+    schedule_rate_hz: 5.0
+    lpf_alpha: 0.75
+    gain_deadzone: 0.15
+    turn_threshold: 0.15          # rad/s: the fuzzy boost only acts while turning
+    kp_min: [1.5, 1.5, 1.5, 1.5]
+    kp_max: [18.0, 18.0, 18.0, 18.0]
+    ki_min: [0.5, 0.5, 0.5, 0.5]
+    ki_max: [4.0, 4.0, 4.0, 4.0]
+    kd_min: [0.0, 0.0, 0.0, 0.0]
+    kd_max: [0.3, 0.3, 0.3, 0.3]
 
 # ---------------------------------------------------------------------------
 # Camera arm. Joint order = [base yaw, shoulder pitch, wrist pitch]. The servos are

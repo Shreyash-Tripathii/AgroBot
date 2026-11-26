@@ -1,0 +1,28 @@
+# gz <-> ROS bridges (ros_gz_bridge parameter_bridge). Camera images go through
+# ros_gz_image's image_bridge instead (image_transport). The IMUs are NOT bridged: they reach
+# ROS through ros2_control + imu_sensor_broadcaster exactly like the real BNO085.
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Raw lidar scan; the arm is masked out by scan_to_scan_filter_chain -> /scan (same as hardware)
+- ros_topic_name: "/scan_raw"
+  gz_topic_name: "/scan_raw"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+# Replaces the u-blox driver
+- ros_topic_name: "/gps/fix"
+  gz_topic_name: "/gps/fix"
+  ros_type_name: "sensor_msgs/msg/NavSatFix"
+  gz_type_name: "gz.msgs.NavSat"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/camera/camera_info"
+  gz_topic_name: "/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

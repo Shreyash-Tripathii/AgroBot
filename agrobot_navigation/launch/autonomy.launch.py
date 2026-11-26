@@ -7,6 +7,9 @@ Unified master launch file for agrobot_navigation:
   - explore:=true       (SLAM Toolbox + Nav2 + Frontier Explorer + auto-save & exit)
   - mode:=localization  (Map Server + AMCL + global_localizer spin + Nav2)
   - mode:=gps           (u-blox NEO-M8N + navsat_transform + Global EKF + Rolling-Window Nav2)
+  - sim:=true           (Gazebo: use_sim_time, maps in maps/sim/, Gazebo's /gps/fix instead of the
+                         u-blox driver, sim_overrides.yaml for navsat). Combine with any mode:
+                         ros2 launch agrobot_gazebo sim.launch.py  +  autonomy.launch.py sim:=true
 """
 
 import os
@@ -161,15 +164,21 @@ def build_nav2_core_nodes(param_files: list, use_sim_time: bool, include_waypoin
 def launch_setup(context, *args, **kwargs):
     pkg_name = 'agrobot_navigation'
     share_dir = get_package_share_directory(pkg_name)
-    maps_dir = resolve_maps_directory(pkg_name)
-
     mode = LaunchConfiguration('mode').perform(context).strip().lower()
     map_name_arg = LaunchConfiguration('map_name').perform(context).strip()
     explore_arg = LaunchConfiguration('explore').perform(context).strip().lower()
     use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context).strip().lower()
 
+    sim = LaunchConfiguration('sim').perform(context).strip().lower() in ('true', '1', 'yes')
+
     explore = explore_arg in ('true', '1', 'yes')
-    use_sim_time = use_sim_time_str in ('true', '1', 'yes')
+    use_sim_time = use_sim_time_str in ('true', '1', 'yes') or sim
+
+    maps_dir = resolve_maps_directory(pkg_name)
+    if sim:
+        # Simulated maps never touch the real robot's maps / latest_map.txt
+        maps_dir = os.path.join(maps_dir, 'sim')
+        os.makedirs(maps_dir, exist_ok=True)
 
     if explore:
         mode = 'mapping'
@@ -178,6 +187,9 @@ def launch_setup(context, *args, **kwargs):
     slam_params_path = os.path.join(share_dir, 'config', 'slam_toolbox_params.yaml')
     rl_params_path = os.path.join(share_dir, 'config', 'dual_ekf_navsat.yaml')
     ublox_params_path = os.path.join(share_dir, 'config', 'ublox_gps.yaml')
+    sim_params_path = os.path.join(share_dir, 'config', 'sim_overrides.yaml')
+    # Later files win: sim_overrides.yaml adjusts navsat/EKF for Gazebo's ENU world
+    rl_params = [rl_params_path] + ([sim_params_path] if sim else [])
 
     actions = []
 
@@ -331,8 +343,8 @@ def launch_setup(context, *args, **kwargs):
             )
         )
 
-        gps_and_ekf_nodes = [
-            # 1. u-blox NEO-M8N UART Driver
+        gps_and_ekf_nodes = [] if sim else [
+            # 1. u-blox NEO-M8N UART Driver (in simulation Gazebo publishes /gps/fix itself)
             Node(
                 package='ublox_gps',
                 executable='ublox_gps_node',
@@ -341,6 +353,8 @@ def launch_setup(context, *args, **kwargs):
                 parameters=[ublox_params_path],
                 remappings=[('/fix', '/gps/fix')],
             ),
+        ]
+        gps_and_ekf_nodes += [
             # 2. Fallback static TF base_footprint -> gps_link (remove if already in URDF)
             Node(
                 package='tf2_ros',
@@ -354,7 +368,7 @@ def launch_setup(context, *args, **kwargs):
                 executable='ekf_node',
                 name='ekf_filter_node_map',
                 output='screen',
-                parameters=[rl_params_path, {'use_sim_time': use_sim_time}],
+                parameters=rl_params + [{'use_sim_time': use_sim_time}],
                 remappings=[('odometry/filtered', '/odometry/global')],
             ),
             # 4. NavSat Transform (fuses /imu/data_mag + /gps/fix + /odometry/global -> /odometry/gps)
@@ -363,7 +377,7 @@ def launch_setup(context, *args, **kwargs):
                 executable='navsat_transform_node',
                 name='navsat_transform_node',
                 output='screen',
-                parameters=[rl_params_path, {'use_sim_time': use_sim_time}],
+                parameters=rl_params + [{'use_sim_time': use_sim_time}],
                 remappings=[
                     ('imu', '/imu/data_mag'),
                     ('gps/fix', '/gps/fix'),
@@ -410,6 +424,12 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use simulation clock if true',
+        ),
+        DeclareLaunchArgument(
+            'sim',
+            default_value='false',
+            description='Gazebo simulation: implies use_sim_time, keeps maps in maps/sim/, '
+                        'skips the u-blox driver and applies config/sim_overrides.yaml',
         ),
         OpaqueFunction(function=launch_setup),
     ])

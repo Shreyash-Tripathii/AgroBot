@@ -1,0 +1,2 @@
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;share/agrobot_gazebo/models
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;share/agrobot_gazebo/worlds

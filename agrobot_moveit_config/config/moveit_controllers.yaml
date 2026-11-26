@@ -1,0 +1,23 @@
+# MoveIt uses this configuration for controller management
+
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - arm_controller
+
+  arm_controller:
+    type: FollowJointTrajectory
+    joints:
+      - arm_base_yaw_joint
+      - arm_shoulder_pitch_joint
+      - arm_wrist_pitch_joint
+    action_ns: follow_joint_trajectory
+    default: true
+
+# The servos are open loop and the reported state is a slew-limited estimate, so execution is
+# monitored with generous tolerances.
+trajectory_execution:
+  allowed_execution_duration_scaling: 1.5
+  allowed_goal_duration_margin: 1.0
+  allowed_start_tolerance: 0.05

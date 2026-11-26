@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Auto-detect the RPLidar A1M8 among identical CP210x /dev/ttyUSB* ports
-(by protocol handshake, not by USB port path) and launch sllidar_node on it.
+Auto-detect the RPLidar A1M8 among /dev/ttyUSB* ports (by protocol handshake, not by
+USB port path) and launch sllidar_node on it. Lidar only: the ESP32 port is handled by
+hardware.launch.py on the robot RPi, so this file has no ESP32 logic.
 
 How: for every /dev/ttyUSB*, open at 115200, send RPLidar STOP + GET_INFO and
 look for the RPLidar response descriptor (A5 5A 14 00 00 00 04). Only a real
@@ -78,51 +79,13 @@ def find_rplidar(baud: int, timeout: float):
         time.sleep(0.5)    # devices may still be enumerating at boot
 
 
-def make_symlink(link: str, target: str, fallback: str):
-    """Atomically (re)point `link` at `target`. /dev is root-only, so if that
-    fails, fall back to a user-writable path. Returns (path_used, warning|None)."""
-    for path in (link, fallback):
-        tmp = f"{path}.tmp{os.getpid()}"
-        try:
-            if os.path.lexists(tmp):
-                os.remove(tmp)
-            os.symlink(target, tmp)
-            os.replace(tmp, path)          # atomic swap, replaces stale links
-            warn = None if path == link else (
-                f"could not create {link} (needs root); using {path} instead")
-            return path, warn
-        except OSError:
-            if os.path.lexists(tmp):
-                os.remove(tmp)
-    return None, f"could not create symlink at {link} or {fallback}"
-
-def esp_link_logs(others, link, fallback):
-    """Symlink the single non-lidar port to `link` (falls back to `fallback`).
-    Returns a list of LogInfo actions."""
-    if len(others) != 1:
-        return [LogInfo(msg=(
-            f"[rplidar_autodetect] WARNING: expected exactly 1 non-lidar ttyUSB port, "
-            f"found {others}; not creating {link}"))]
-    used, warn = make_symlink(link, others[0], fallback)
-    logs = []
-    if used:
-        logs.append(LogInfo(msg=f"[rplidar_autodetect] {used} -> {others[0]}"))
-    if warn:
-        logs.append(LogInfo(msg=f"[rplidar_autodetect] WARNING: {warn}"))
-    return logs
-
-
 def launch_setup(context, *args, **kwargs):
     baud = int(LaunchConfiguration("serial_baudrate").perform(context))
     timeout = float(LaunchConfiguration("detect_timeout").perform(context))
 
-    esp_link = LaunchConfiguration("esp32_symlink").perform(context)
-    esp_fallback = LaunchConfiguration("esp32_symlink_fallback").perform(context)
-
     lidar_port, others = find_rplidar(baud, timeout)
 
-    # No lidar found: don't error out. Treat the remaining port as the ESP32,
-    # link it at /tmp/esp32 (the fallback path), and skip launching the lidar node.
+    # No lidar found: don't error out, just skip the lidar node.
     if lidar_port is None:
         return [
             LogInfo(msg=(
@@ -130,7 +93,6 @@ def launch_setup(context, *args, **kwargs):
                 f"after {timeout:.0f}s (checked: {others or 'no ttyUSB devices'}). "
                 "Not launching sllidar_node. Check wiring/power, `dialout` group "
                 "membership, and that no other process holds the port.")),
-            *esp_link_logs(others, esp_fallback, esp_fallback),
         ]
 
     # filter_arm: lidar publishes /scan_raw; a box filter drops the arm and republishes /scan,
@@ -165,8 +127,6 @@ def launch_setup(context, *args, **kwargs):
         ))
     return [
         LogInfo(msg=f"[rplidar_autodetect] RPLidar found on {lidar_port}"),
-        LogInfo(msg=f"[rplidar_autodetect] Remaining ttyUSB ports (ESP32 candidate): {others}"),
-        *esp_link_logs(others, esp_link, esp_fallback),
         lidar_node,
         *filter_nodes,
     ]
@@ -178,10 +138,6 @@ def generate_launch_description():
         DeclareLaunchArgument("inverted", default_value="false"),
         DeclareLaunchArgument("detect_timeout", default_value="10.0",
                               description="Seconds to wait for the lidar to enumerate"),
-        DeclareLaunchArgument("esp32_symlink", default_value="/dev/esp32",
-                              description="Symlink to create for the non-lidar port"),
-        DeclareLaunchArgument("esp32_symlink_fallback", default_value="/tmp/esp32",
-                              description="Used if esp32_symlink can't be created (no root)"),
         DeclareLaunchArgument("filter_arm", default_value="true",
                               description="Mask the camera arm out of the scan (/scan_raw -> /scan)"),
         OpaqueFunction(function=launch_setup),

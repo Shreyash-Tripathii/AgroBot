@@ -1,0 +1,18 @@
+<library path="agrobot_controllers">
+  <class name="agrobot_controllers/YawHeadingController"
+         type="agrobot_controllers::YawHeadingController"
+         base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Heading-hold: integrates the commanded yaw rate into a target heading and corrects
+      the angular velocity with a PD(I) loop on the IMU yaw. Head of the drive chain.
+    </description>
+  </class>
+  <class name="agrobot_controllers/FuzzyGainScheduler"
+         type="agrobot_controllers::FuzzyGainScheduler"
+         base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Fuzzy (error, error-rate) scheduler that retunes the wheel PID gains on the motor
+      controller and passes the velocity command through to the base controller.
+    </description>
+  </class>
+</library>
