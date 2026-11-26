@@ -1,0 +1,393 @@
+{
+  "configById": {
+    "Plot!f13863e": {
+      "paths": [
+        {
+          "value": "/telemetry/wheel_velocity.data[0]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "FL",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/telemetry/wheel_velocity.data[1]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "FR",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/telemetry/wheel_velocity.data[2]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "RL",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/telemetry/wheel_velocity.data[3]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "RR",
+          "color": "#5cd6a9",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30,
+      "foxglovePanelTitle": "Wheel velocity (rad/s)",
+      "minYValue": -12,
+      "maxYValue": 12
+    },
+    "Plot!ba12e69": {
+      "paths": [
+        {
+          "value": "/arm_controller/controller_state.feedback.positions[0]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "yaw",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.feedback.positions[1]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "shoulder",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.feedback.positions[2]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "wrist",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.reference.positions[0]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "yaw ref",
+          "color": "#5cd6a9",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.reference.positions[1]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "shoulder ref",
+          "color": "#cb7de8",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.reference.positions[2]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "wrist ref",
+          "color": "#e86a8c",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30,
+      "foxglovePanelTitle": "Arm joints: feedback vs reference (rad)",
+      "minYValue": -1.7,
+      "maxYValue": 1.7
+    },
+    "Plot!4cc37b6": {
+      "paths": [
+        {
+          "value": "/arm_controller/controller_state.error.positions[0]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "yaw",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.error.positions[1]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "shoulder",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/arm_controller/controller_state.error.positions[2]",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "wrist",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30,
+      "foxglovePanelTitle": "Arm tracking error (rad)",
+      "minYValue": -0.2,
+      "maxYValue": 0.2
+    },
+    "Plot!41e1db5": {
+      "paths": [
+        {
+          "value": "/imu/data_game.angular_velocity.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "x",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.angular_velocity.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "y",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.angular_velocity.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "z",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30,
+      "foxglovePanelTitle": "IMU gyro (rad/s)",
+      "minYValue": -3,
+      "maxYValue": 3
+    },
+    "Plot!9830996": {
+      "paths": [
+        {
+          "value": "/imu/data_game.linear_acceleration.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "x",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.linear_acceleration.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "y",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.linear_acceleration.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "z",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 30,
+      "foxglovePanelTitle": "IMU accel (m/s^2)",
+      "minYValue": -12,
+      "maxYValue": 12
+    },
+    "Plot!4c21317": {
+      "paths": [
+        {
+          "value": "/odometry/filtered.pose.pose.position.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "x",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/odometry/filtered.pose.pose.position.y",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "y",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 120,
+      "foxglovePanelTitle": "EKF position (m)"
+    },
+    "Plot!54b5307": {
+      "paths": [
+        {
+          "value": "/telemetry/cpu_percent.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "CPU %",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/telemetry/mem_percent.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "memory %",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/telemetry/cpu_temp_c.data",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "CPU temp C",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 120,
+      "foxglovePanelTitle": "System",
+      "minYValue": 0,
+      "maxYValue": 100
+    },
+    "DiagnosticSummary!776e6c3": {
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "",
+      "topicToRender": "/diagnostics",
+      "sortByLevel": true,
+      "foxglovePanelTitle": "Health"
+    },
+    "map!11648e4": {
+      "layer": "map",
+      "zoomLevel": 18,
+      "followTopic": "/gps/fix",
+      "topicColors": {
+        "/gps/fix": "#ff5252"
+      },
+      "foxglovePanelTitle": "GPS"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "column",
+    "first": {
+      "direction": "row",
+      "first": "Plot!f13863e",
+      "second": {
+        "direction": "row",
+        "first": "Plot!ba12e69",
+        "second": "Plot!4cc37b6",
+        "splitPercentage": 50
+      },
+      "splitPercentage": 33
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "row",
+        "first": "Plot!41e1db5",
+        "second": {
+          "direction": "row",
+          "first": "Plot!9830996",
+          "second": "Plot!4c21317",
+          "splitPercentage": 50
+        },
+        "splitPercentage": 33
+      },
+      "second": {
+        "direction": "row",
+        "first": "Plot!54b5307",
+        "second": {
+          "direction": "row",
+          "first": "DiagnosticSummary!776e6c3",
+          "second": "map!11648e4",
+          "splitPercentage": 50
+        },
+        "splitPercentage": 33
+      },
+      "splitPercentage": 50
+    },
+    "splitPercentage": 33
+  }
+}

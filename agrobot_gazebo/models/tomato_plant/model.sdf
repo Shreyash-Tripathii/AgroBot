@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!-- Static primitive model. gz-sim-label-system tags it with label 2; a gz segmentation
+     or bounding-box camera pointed at the field then reports it as class 2
+     (1 = cabbage, 2 = tomato plant, 3 = carrot) for scoring an OpenCV detector. -->
+<sdf version="1.9">
+  <model name="tomato_plant">
+    <static>true</static>
+    <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+      <label>2</label>
+    </plugin>
+    <link name="link">
+      <visual name='stem'><pose>0 0 0.35 0 0 0</pose><geometry><cylinder><radius>0.015</radius><length>0.7</length></cylinder></geometry><material><ambient>0.35 0.28 0.12 1</ambient><diffuse>0.35 0.28 0.12 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='foliage'><pose>0 0 0.42 0 0 0</pose><geometry><sphere><radius>0.17</radius></sphere></geometry><material><ambient>0.12 0.4 0.1 1</ambient><diffuse>0.12 0.4 0.1 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='fruit1'><pose>0.12 0.05 0.30 0 0 0</pose><geometry><sphere><radius>0.04</radius></sphere></geometry><material><ambient>0.85 0.08 0.06 1</ambient><diffuse>0.85 0.08 0.06 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='fruit2'><pose>-0.10 0.09 0.42 0 0 0</pose><geometry><sphere><radius>0.04</radius></sphere></geometry><material><ambient>0.85 0.08 0.06 1</ambient><diffuse>0.85 0.08 0.06 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='fruit3'><pose>0.04 -0.13 0.50 0 0 0</pose><geometry><sphere><radius>0.04</radius></sphere></geometry><material><ambient>0.85 0.08 0.06 1</ambient><diffuse>0.85 0.08 0.06 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <visual name='fruit4'><pose>-0.08 -0.10 0.25 0 0 0</pose><geometry><sphere><radius>0.04</radius></sphere></geometry><material><ambient>0.8 0.1 0.06 1</ambient><diffuse>0.8 0.1 0.06 1</diffuse><specular>0.05 0.05 0.05 1</specular></material></visual>
+      <collision name='stem_collision'><pose>0 0 0.35 0 0 0</pose><geometry><cylinder><radius>0.03</radius><length>0.7</length></cylinder></geometry></collision>
+    </link>
+  </model>
+</sdf>

@@ -237,6 +237,14 @@ class GlobalLocalizer(Node):
     def _tick(self):
         if self.finished:
             return
+        # With use_sim_time the node clock reads 0 until the first /clock message arrives.
+        # Wait for it and restart the state timer from the real time, otherwise the first
+        # tick sees "hundreds of seconds elapsed" and every timeout fires immediately.
+        now_ns = self._now_ns()
+        if now_ns == 0:
+            return
+        if self._state_enter_ns == 0:
+            self._state_enter_ns = now_ns
         handler = {
             State.SCATTER: self._do_scatter,
             State.SPIN: self._do_spin,

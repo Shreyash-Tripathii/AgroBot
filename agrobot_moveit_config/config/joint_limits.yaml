@@ -1,0 +1,22 @@
+# MoveIt-side limits (override / augment the URDF limits). The MG995 servos are open loop and the
+# hardware interface slew-limits every joint to 1.5 rad/s (see agrobot_arm_params.xacro), so the
+# planner must never ask for more. Jazzy's time parameterisation needs acceleration limits.
+default_velocity_scaling_factor: 0.5
+default_acceleration_scaling_factor: 0.5
+
+joint_limits:
+  arm_base_yaw_joint:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0
+  arm_shoulder_pitch_joint:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0
+  arm_wrist_pitch_joint:
+    has_velocity_limits: true
+    max_velocity: 1.5
+    has_acceleration_limits: true
+    max_acceleration: 3.0

@@ -1,0 +1,8 @@
+# Applied ON TOP of agrobot_bringup/config/controllers.yaml in simulation (later file wins).
+# Everything else (diff drive, IMU broadcasters, arm controllers) is shared with the real robot.
+#
+# Gazebo has no ESP32 motor PID, so fuzzy_gain_scheduler is not used: the heading-hold
+# controller drives the diff drive controller directly.
+yaw_heading_controller:
+  ros__parameters:
+    output_controller: agrobot_base_controller

@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>agrobot_moveit_config</name>
+  <version>0.3.0</version>
+  <description>MoveIt 2 configuration for the AgroBot 3-DOF camera arm (planning only: hardware, robot_state_publisher and controllers come from agrobot_bringup / agrobot_gazebo)</description>
+  <maintainer email="shreyash5600@gmail.com">Shreyash</maintainer>
+
+  <license>BSD-3-Clause</license>
+
+  <author email="shreyash5600@gmail.com">Shreyash</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>agrobot_description</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_kinematics</exec_depend>
+  <exec_depend>pick_ik</exec_depend>
+  <exec_depend>moveit_planners_ompl</exec_depend>
+  <exec_depend>pilz_industrial_motion_planner</exec_depend>
+  <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_ros_visualization</exec_depend>
+  <exec_depend>moveit_setup_assistant</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

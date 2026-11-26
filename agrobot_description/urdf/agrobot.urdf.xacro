@@ -180,6 +180,9 @@
   <!-- ========================================== -->
   <xacro:arg name="serial_port" default="/tmp/esp32"/>
   <xacro:arg name="baud_rate" default="500000"/>
+  <xacro:arg name="use_imu" default="true"/>
+  <xacro:arg name="mock_imu" default="false"/>
+  <xacro:arg name="i2c_bus" default="3"/>
 
   <!-- ========================================== -->
   <!-- 3-DOF Camera Arm (optional, rear of chassis) -->
@@ -192,12 +195,33 @@
     <xacro:agrobot_camera_arm parent="base_link"/>
   </xacro:if>
 
+  <!-- ========================================== -->
+  <!-- Gazebo simulation (sim_mode:=true)         -->
+  <!-- ========================================== -->
+  <!-- Replaces the ESP32 + BNO085 ros2_control hardware by gz_ros2_control and gz sensors. -->
+  <xacro:arg name="sim_mode" default="false"/>
+  <xacro:arg name="sim_controllers" default=""/>
+  <xacro:arg name="sim_controllers_override" default=""/>
+  <xacro:if value="$(arg sim_mode)">
+    <xacro:include filename="$(find agrobot_description)/urdf/agrobot.ros2_control.xacro"/>
+    <xacro:include filename="$(find agrobot_description)/urdf/agrobot.gazebo.xacro"/>
+    <xacro:agrobot_gz_ros2_control use_arm="$(arg use_arm)"
+      controllers="$(arg sim_controllers)" override="$(arg sim_controllers_override)"/>
+    <xacro:agrobot_gazebo use_arm="$(arg use_arm)"/>
+  </xacro:if>
+
+  <xacro:unless value="$(arg sim_mode)">
   <xacro:if value="$(arg use_ros2_control)">
     <xacro:include filename="$(find agrobot_description)/urdf/agrobot.ros2_control.xacro"/>
     <xacro:agrobot_ros2_control
       serial_port="$(arg serial_port)"
       baud_rate="$(arg baud_rate)"
       use_arm="$(arg use_arm)"/>
+    <!-- BNO085 IMU as a ros2_control sensor (use_imu:=false to omit, mock_imu:=true for a mock) -->
+    <xacro:if value="$(arg use_imu)">
+      <xacro:agrobot_imu_ros2_control mock="$(arg mock_imu)" i2c_bus="$(arg i2c_bus)"/>
+    </xacro:if>
   </xacro:if>
+  </xacro:unless>
 
 </robot>

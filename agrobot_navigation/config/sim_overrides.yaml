@@ -1,0 +1,14 @@
+# Applied after dual_ekf_navsat.yaml when autonomy.launch.py is run with sim:=true.
+# Gazebo's world is a perfect ENU frame, so there is no magnetic declination. No yaw offset
+# is needed either: navsat_transform already applies the imu_link -> base_footprint mounting
+# (the URDF yaws imu_link by 180 deg). Verified in simulation by driving east and comparing
+# /odometry/gps with the local EKF; a pi offset here mirrors the GPS track, so do not add one.
+navsat_transform_node:
+  ros__parameters:
+    use_sim_time: true
+    magnetic_declination_radians: 0.0
+    yaw_offset: 0.0
+
+ekf_filter_node_map:
+  ros__parameters:
+    use_sim_time: true

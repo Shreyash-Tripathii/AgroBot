@@ -22,9 +22,6 @@ install(DIRECTORY
 
 # Install Python nodes
 install(PROGRAMS
-  scripts/yaw_heading_controller.py
-  scripts/gain_scheduler_node.py
-  scripts/bno085_driver.py
   scripts/click_goal.py
   DESTINATION lib/${PROJECT_NAME}
 )

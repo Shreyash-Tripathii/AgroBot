@@ -1,0 +1,133 @@
+<?xml version="1.0"?>
+<!--
+  Gazebo-only additions (included when sim_mode:=true): surface friction and the simulated
+  sensors. Every sensor publishes with the SAME frame ids as the real hardware
+  (lidar_link, imu_link, camera_optical_frame, gps_link), so the rest of the stack cannot
+  tell simulation from the real robot. gz-sim lumps massless fixed-joint links into their
+  parent; sensors keep their pose and use gz_frame_id for the message frame.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Skid steer: grippy wheels, slippery chassis -->
+  <xacro:macro name="gz_wheel_surface" params="prefix">
+    <gazebo reference="${prefix}_wheel_link">
+      <mu1>0.8</mu1>
+      <mu2>0.8</mu2>
+      <kp>1000000.0</kp>
+      <kd>100.0</kd>
+    </gazebo>
+  </xacro:macro>
+  <xacro:gz_wheel_surface prefix="front_left"/>
+  <xacro:gz_wheel_surface prefix="front_right"/>
+  <xacro:gz_wheel_surface prefix="rear_left"/>
+  <xacro:gz_wheel_surface prefix="rear_right"/>
+  <gazebo reference="chassis_link">
+    <mu1>0.05</mu1>
+    <mu2>0.05</mu2>
+  </gazebo>
+
+  <xacro:macro name="agrobot_gazebo" params="use_arm:=true">
+
+    <!-- RPLidar A1M8-like: 360 samples, 8 Hz, 0.15-12 m, 1 cm noise -> /scan_raw -->
+    <gazebo reference="lidar_link">
+      <sensor name="rplidar" type="gpu_lidar">
+        <gz_frame_id>lidar_link</gz_frame_id>
+        <topic>scan_raw</topic>
+        <update_rate>8</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159</min_angle>
+              <max_angle>3.14159</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.15</min>
+            <max>12.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </lidar>
+      </sensor>
+    </gazebo>
+
+    <!-- BNO085: game rotation vector (relative) and absolute rotation vector, ENU reference.
+         Names match the ros2_control <sensor> entries and the real hardware component. -->
+    <xacro:macro name="gz_imu" params="name">
+      <sensor name="${name}" type="imu">
+        <gz_frame_id>imu_link</gz_frame_id>
+        <topic>${name}_raw</topic>
+        <update_rate>100</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <imu>
+          <orientation_reference_frame>
+            <localization>ENU</localization>
+          </orientation_reference_frame>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0005</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0005</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0005</stddev></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.02</stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+    </xacro:macro>
+    <gazebo reference="imu_link">
+      <xacro:gz_imu name="imu_game"/>
+      <xacro:gz_imu name="imu_mag"/>
+    </gazebo>
+
+    <!-- u-blox NEO-M8N replacement -> /gps/fix (needs <spherical_coordinates> in the world) -->
+    <gazebo reference="base_link">
+      <sensor name="gps" type="navsat">
+        <gz_frame_id>gps_link</gz_frame_id>
+        <topic>gps/fix</topic>
+        <update_rate>5</update_rate>
+        <always_on>true</always_on>
+      </sensor>
+    </gazebo>
+
+    <!-- Arm-tip RGB camera (end effector): 640x480 @ 15 Hz, ~69 deg HFOV -->
+    <xacro:if value="${use_arm}">
+      <gazebo reference="camera_link">
+        <sensor name="camera" type="camera">
+          <gz_frame_id>camera_optical_frame</gz_frame_id>
+          <topic>camera/image_raw</topic>
+          <update_rate>15</update_rate>
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <camera>
+            <horizontal_fov>1.204</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.05</near>
+              <far>30.0</far>
+            </clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>
