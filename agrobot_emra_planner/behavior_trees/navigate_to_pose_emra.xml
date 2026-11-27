@@ -1,0 +1,71 @@
+<!--
+  AgroBot NavigateToPose tree for the EMRA global planner.
+
+  The metaheuristic planner is expensive, so the path is computed ONCE per goal and then only
+  recomputed when it is actually needed. The cheap check below runs at 2 Hz and re-plans only if
+    (a) the goal was updated, or
+    (b) IsPathValid reports the path is blocked / empty (planner_server checks it against the
+        live global costmap), or
+    (c) the robot drifted more than max_deviation from the path (slip, recovery behaviour, push).
+  If EMRA cannot find a path, the stock NavFn planner (planner id "NavFnBackup") is tried once.
+  NOTE: NavFn only guarantees the costmap's inscribed radius (0.11 m), not EMRA's chassis-safe
+  radius. Delete the "NavFnBackup" ComputePathToPose below if you prefer to fail instead.
+-->
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithEventReplanning">
+        <ControllerSelector selected_controller="{selected_controller}" default_controller="FollowPath" topic_name="controller_selector"/>
+        <PlannerSelector selected_planner="{selected_planner}" default_planner="GridBased" topic_name="planner_selector"/>
+        <RateController hz="2.0" name="PathCheckRate">
+          <RecoveryNode number_of_retries="1" name="RecoveryComputePathToPose">
+            <Fallback name="PlanOnlyIfNeeded">
+              <ReactiveSequence name="PathStillGood">
+                <Inverter>
+                  <GlobalUpdatedGoal/>
+                </Inverter>
+                <IsPathValid path="{path}"/>
+                <Inverter>
+                  <IsPathDeviated path="{path}" max_deviation="0.6"/>
+                </Inverter>
+              </ReactiveSequence>
+              <Fallback name="PlanWithBackup">
+                <ComputePathToPose goal="{goal}" path="{path}" planner_id="{selected_planner}" error_code_id="{compute_path_error_code}"/>
+                <ComputePathToPose goal="{goal}" path="{path}" planner_id="NavFnBackup" error_code_id="{compute_path_error_code}"/>
+              </Fallback>
+            </Fallback>
+            <Sequence>
+              <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+            </Sequence>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="RecoveryFollowPath">
+          <FollowPath path="{path}" controller_id="{selected_controller}" error_code_id="{follow_path_error_code}"/>
+          <Sequence>
+            <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+            <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+          </Sequence>
+        </RecoveryNode>
+      </PipelineSequence>
+      <Sequence>
+        <Fallback>
+          <WouldAControllerRecoveryHelp error_code="{follow_path_error_code}"/>
+          <WouldAPlannerRecoveryHelp error_code="{compute_path_error_code}"/>
+        </Fallback>
+        <ReactiveFallback name="FallbackRecoveries">
+          <GoalUpdated/>
+          <RoundRobin name="RecoveryActions">
+            <Sequence name="ClearingActions">
+              <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+              <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
+            </Sequence>
+            <Spin spin_dist="1.57" error_code_id="{spin_error_code}"/>
+            <Wait wait_duration="5.0"/>
+            <BackUp backup_dist="0.30" backup_speed="0.15" error_code_id="{backup_error_code}"/>
+          </RoundRobin>
+        </ReactiveFallback>
+      </Sequence>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

@@ -73,8 +73,23 @@ def resolve_latest_map_yaml(maps_dir: str, requested_name: str) -> str:
     return max(yaml_files, key=os.path.getmtime)
 
 
-def build_nav2_core_nodes(param_files: list, use_sim_time: bool, include_waypoint_follower: bool = True):
-    """Helper to avoid repeating Nav2 server declarations across modes."""
+def build_nav2_core_nodes(param_files: list, use_sim_time: bool, include_waypoint_follower: bool = True,
+                          use_emra: bool = False):
+    """Helper to avoid repeating Nav2 server declarations across modes.
+
+    use_emra=False -> stock Nav2 setup exactly as configured in nav2_params.yaml.
+    use_emra=True  -> EMRA global planner, event-driven replanning BTs and chassis footprint on top.
+    """
+    bt_params = {'use_sim_time': use_sim_time}
+    if use_emra:
+        param_files = param_files + [os.path.join(
+            get_package_share_directory('agrobot_navigation'), 'config', 'emra_overrides.yaml')]
+        emra_share = get_package_share_directory('agrobot_emra_planner')
+        bt_params.update({
+            'default_nav_to_pose_bt_xml': os.path.join(emra_share, 'behavior_trees', 'navigate_to_pose_emra.xml'),
+            'default_nav_through_poses_bt_xml': os.path.join(
+                emra_share, 'behavior_trees', 'navigate_through_poses_emra.xml'),
+        })
     nodes = [
         Node(
             package='nav2_controller',
@@ -109,7 +124,7 @@ def build_nav2_core_nodes(param_files: list, use_sim_time: bool, include_waypoin
             executable='bt_navigator',
             name='bt_navigator',
             output='screen',
-            parameters=param_files + [{'use_sim_time': use_sim_time}],
+            parameters=param_files + [bt_params],
         ),
         Node(
             package='nav2_velocity_smoother',
@@ -172,6 +187,7 @@ def launch_setup(context, *args, **kwargs):
     sim = LaunchConfiguration('sim').perform(context).strip().lower() in ('true', '1', 'yes')
 
     explore = explore_arg in ('true', '1', 'yes')
+    use_emra = LaunchConfiguration('use_emra').perform(context).strip().lower() in ('true', '1', 'yes')
     use_sim_time = use_sim_time_str in ('true', '1', 'yes') or sim
 
     maps_dir = resolve_maps_directory(pkg_name)
@@ -250,7 +266,8 @@ def launch_setup(context, *args, **kwargs):
 
         if explore:
             actions.extend(
-                build_nav2_core_nodes([nav2_params_path], use_sim_time, include_waypoint_follower=False)
+                build_nav2_core_nodes([nav2_params_path], use_sim_time, include_waypoint_follower=False,
+                                      use_emra=use_emra)
             )
 
             explorer_node = Node(
@@ -330,7 +347,7 @@ def launch_setup(context, *args, **kwargs):
         )
 
         actions.extend(localization_nodes)
-        actions.extend(build_nav2_core_nodes([nav2_params_path], use_sim_time))
+        actions.extend(build_nav2_core_nodes([nav2_params_path], use_sim_time, use_emra=use_emra))
         actions.append(TimerAction(period=3.0, actions=[global_localizer_node]))
 
     # =========================================================================
@@ -390,7 +407,7 @@ def launch_setup(context, *args, **kwargs):
         actions.extend(gps_and_ekf_nodes)
         # Pass rl_params_path SECOND so its rolling-window global_costmap overrides nav2_params.yaml
         actions.extend(
-            build_nav2_core_nodes([nav2_params_path, rl_params_path], use_sim_time)
+            build_nav2_core_nodes([nav2_params_path, rl_params_path], use_sim_time, use_emra=use_emra)
         )
 
     else:
@@ -424,6 +441,12 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use simulation clock if true',
+        ),
+        DeclareLaunchArgument(
+            'use_emra',
+            default_value='false',
+            description='true = EMRA global planner + event-driven replanning BT + chassis footprint '
+                        '(config/emra_overrides.yaml); false = stock Nav2 setup (NavFn, default BT)',
         ),
         DeclareLaunchArgument(
             'sim',
