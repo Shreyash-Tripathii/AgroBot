@@ -12,7 +12,7 @@ install(FILES foxglove/extension/package.json foxglove/extension/tsconfig.json
   DESTINATION share/${PROJECT_NAME}/foxglove/extension)
 
 install(PROGRAMS scripts/telemetry_monitor.py scripts/generate_layouts.py
-  scripts/arm_commander.py
+  scripts/arm_commander.py scripts/autonomy_manager.py
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

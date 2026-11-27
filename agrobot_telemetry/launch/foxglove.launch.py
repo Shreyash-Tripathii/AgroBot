@@ -13,6 +13,7 @@ or open Studio on ws://<host>:8765 from another PC when address/port are reachab
 Starts
   foxglove_bridge   ROS 2 <-> Foxglove websocket (topics, TF, parameters, services, /cmd_vel publish)
   arm_commander     /arm_commander/{plan,execute,stop,status}: MoveIt as services (Arm Planner panel)
+  autonomy_manager  /autonomy_manager/*: start / stop autonomy.launch.py (explore, mapping, localization, gps)
   telemetry_monitor /diagnostics + /telemetry/* (system health, sensor rates, controller states)
 """
 import os
@@ -58,6 +59,12 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('arm_commander')),
     )
 
+    autonomy = Node(
+        package='agrobot_telemetry', executable='autonomy_manager.py', name='autonomy_manager',
+        output='screen', parameters=[{'use_sim_time': sim, 'sim': sim}],
+        condition=IfCondition(LaunchConfiguration('autonomy_manager')),
+    )
+
     studio = ExecuteProcess(
         cmd=['foxglove-studio',
              ['foxglove://open?ds=foxglove-websocket&ds.url=ws://localhost:', LaunchConfiguration('port')]],
@@ -78,7 +85,9 @@ def generate_launch_description():
                               description='CPU temperature that turns Health red'),
         DeclareLaunchArgument('arm_commander', default_value='true',
                               description='Run arm_commander (plan/execute services for the Arm Planner panel)'),
+        DeclareLaunchArgument('autonomy_manager', default_value='true',
+                              description='Run autonomy_manager (start / stop autonomy.launch.py from Foxglove)'),
         DeclareLaunchArgument('studio', default_value='false',
                               description='Open Foxglove Studio connected to the bridge'),
-        bridge, monitor, commander, studio,
+        bridge, monitor, commander, autonomy, studio,
     ])

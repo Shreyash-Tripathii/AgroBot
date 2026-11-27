@@ -49,6 +49,9 @@ TOPIC_TYPES = {
     '/local_plan': 'nav_msgs/msg/Path',
     '/local_costmap/published_footprint': 'geometry_msgs/msg/PolygonStamped',
     '/robot_description': 'std_msgs/msg/String',
+    '/autonomy_manager/state': 'std_msgs/msg/String',
+    '/autonomy_manager/mode': 'std_msgs/msg/String',
+    '/autonomy_manager/log': 'rcl_interfaces/msg/Log',
     '/lidar_manager/state': 'std_msgs/msg/String',
     '/lidar_manager/status': 'std_msgs/msg/String',
     '/lidar_manager/log': 'rcl_interfaces/msg/Log',
@@ -193,9 +196,9 @@ def call_service(title, service, color):
 
 def engineering():
     ids = {k: pid(*k.split(':')) for k in (
-        'Plot:wheels', 'Plot:armpos', 'Plot:armerr', 'Plot:odom', 'TransformTree:tf', '3D:robot',
+        'Plot:wheels', 'Plot:armpos', 'Plot:odom', 'TransformTree:tf', '3D:robot',
         'DiagnosticStatusPanel:lidar', 'Indicator:lidar', 'CallService:start', 'CallService:restart',
-        'CallService:stop', 'RosOut:lidar')}
+        'CallService:stop', 'RosOut:lidar') + AUTONOMY_KEYS}
     cfg = {
         ids['Plot:wheels']: plot('Wheel velocity (rad/s)', [
             (n, f'/telemetry/wheel_velocity.data[{i}]') for i, n in enumerate(['FL', 'FR', 'RL', 'RR'])],
@@ -208,11 +211,6 @@ def engineering():
             ('shoulder ref', '/arm_controller/controller_state.reference.positions[1]'),
             ('wrist ref', '/arm_controller/controller_state.reference.positions[2]')],
             y_min=-1.7, y_max=1.7),
-        ids['Plot:armerr']: plot('Arm tracking error (rad)', [
-            ('yaw', '/arm_controller/controller_state.error.positions[0]'),
-            ('shoulder', '/arm_controller/controller_state.error.positions[1]'),
-            ('wrist', '/arm_controller/controller_state.error.positions[2]')],
-            y_min=-0.2, y_max=0.2),
         ids['Plot:odom']: plot('EKF position (m)', [
             ('x', '/odometry/filtered.pose.pose.position.x'),
             ('y', '/odometry/filtered.pose.pose.position.y')], window=120),
@@ -236,7 +234,12 @@ def engineering():
         ids['RosOut:lidar']: {'topicToRender': '/lidar_manager/log', 'searchTerms': [], 'minLogLevel': 1,
                               'nameFilter': {}, 'foxglovePanelTitle': 'sllidar_node log'},
     }
-    row1 = split('row', ids['Plot:wheels'], split('row', ids['Plot:armpos'], ids['Plot:armerr'], 50), 33)
+    cfg.update({k: v for k, v in autonomy_panels(ids).items() if k in {ids[b] for b in BUTTON_KEYS}})
+    # small autonomy launcher (where the arm tracking error plot was): 4 modes + shut down
+    launcher = split('column', split('row', ids['CallService:explore'], ids['CallService:mapping'], 50),
+                     split('column', split('row', ids['CallService:localization'], ids['CallService:gps'], 50),
+                           ids['CallService:auto_stop'], 50), 34)
+    row1 = split('row', ids['Plot:wheels'], split('row', ids['Plot:armpos'], launcher, 50), 33)
     # TF tree spans two cells (where the two IMU plots were); EKF position stays in the third
     row2 = split('row', ids['TransformTree:tf'], ids['Plot:odom'], 66)
     buttons = split('row', ids['Indicator:lidar'],
@@ -249,7 +252,96 @@ def engineering():
             'playbackConfig': {'speed': 1}, 'layout': layout}
 
 
-LAYOUTS = {'agrobot_mission_control.json': mission_control, 'agrobot_engineering.json': engineering}
+BUTTON_KEYS = ('CallService:explore', 'CallService:mapping', 'CallService:localization', 'CallService:gps',
+               'CallService:auto_stop')
+AUTONOMY_KEYS = ('Indicator:state', 'Indicator:mode', 'CallService:explore', 'CallService:mapping',
+                 'CallService:localization', 'CallService:gps', 'CallService:auto_stop', 'DiagnosticSummary:lifecycle',
+                 'DiagnosticSummary:launch', 'RosOut:autonomy')
+
+
+def autonomy_panels(ids):
+    """Config of every autonomy-control panel (buttons, indicators, lifecycle / launch diagnostics, log)."""
+    modes = [('explore', 'Explore'), ('mapping', 'Mapping'), ('localization', 'Localization'), ('gps', 'GPS')]
+    colors = {'explore': '#2563eb', 'mapping': '#7c3aed', 'localization': '#0d9488', 'gps': '#d97706'}
+    cfg = {
+        ids['Indicator:state']: {
+            'path': '/autonomy_manager/state.data', 'style': 'background', 'fallbackColor': '#6b7280',
+            'fallbackLabel': 'Autonomy: no manager', 'rules': [
+                {'operator': '=', 'rawValue': 'running', 'color': '#16a34a', 'label': 'Autonomy RUNNING'},
+                {'operator': '=', 'rawValue': 'starting', 'color': '#d97706', 'label': 'Autonomy starting...'},
+                {'operator': '=', 'rawValue': 'stopping', 'color': '#d97706', 'label': 'Autonomy stopping...'},
+                {'operator': '=', 'rawValue': 'stopped', 'color': '#6b7280', 'label': 'Autonomy stopped'},
+                {'operator': '=', 'rawValue': 'crashed', 'color': '#dc2626', 'label': 'Autonomy CRASHED'}],
+            'foxglovePanelTitle': 'Autonomy state'},
+        ids['Indicator:mode']: {
+            'path': '/autonomy_manager/mode.data', 'style': 'background', 'fallbackColor': '#374151',
+            'fallbackLabel': 'mode: none', 'rules': [
+                {'operator': '=', 'rawValue': m, 'color': colors[m], 'label': f'mode: {m}'} for m, _ in modes],
+            'foxglovePanelTitle': 'Mode'},
+        ids['DiagnosticSummary:lifecycle']: {
+            'minLevel': 0, 'pinnedIds': [], 'hardwareIdFilter': 'nav_lifecycle',
+            'topicToRender': '/diagnostics', 'sortByLevel': False,
+            'foxglovePanelTitle': 'Node lifecycle states'},
+        ids['DiagnosticSummary:launch']: {
+            'minLevel': 0, 'pinnedIds': [], 'hardwareIdFilter': 'nav_launch',
+            'topicToRender': '/diagnostics', 'sortByLevel': True,
+            'foxglovePanelTitle': 'Autonomy launch diagnostics'},
+        ids['RosOut:autonomy']: {'topicToRender': '/autonomy_manager/log', 'searchTerms': [], 'minLogLevel': 1,
+                                 'nameFilter': {}, 'foxglovePanelTitle': 'Autonomy log'},
+    }
+    for m, label in modes:
+        cfg[ids[f'CallService:{m}']] = call_service(label, f'/autonomy_manager/start_{m}', colors[m])
+    cfg[ids['CallService:auto_stop']] = call_service('Shut down autonomy', '/autonomy_manager/stop', '#b91c1c')
+    return cfg
+
+
+def autonomy():
+    """Navigation dashboard: map + costmaps + plans (click to set a goal), manual drive / e-stop, speed
+    plots, GPS track, and everything about autonomy.launch.py: mode buttons, state, per-node lifecycle,
+    launch diagnostics and its live log."""
+    ids = {k: pid(*k.split(':')) for k in (
+        ('3D:map', 'Teleop:drive', 'Plot:speed', 'Plot:yaw', 'map:gps') + AUTONOMY_KEYS)}
+    nav3d = panel_3d()
+    nav3d['cameraState'].update({'distance': 16, 'phi': 28, 'thetaOffset': 0})
+    nav3d['topics']['/global_costmap/costmap']['visible'] = True
+    nav3d['foxglovePanelTitle'] = 'Map / costmaps / plans  (click to set goal or pose estimate)'
+    cfg = {
+        ids['3D:map']: nav3d,
+        ids['Teleop:drive']: {
+            'topic': '/cmd_vel', 'publishRate': 10,
+            'upButton': {'field': 'linear-x', 'value': 0.3}, 'downButton': {'field': 'linear-x', 'value': -0.3},
+            'leftButton': {'field': 'angular-z', 'value': 0.8}, 'rightButton': {'field': 'angular-z', 'value': -0.8},
+            'foxglovePanelTitle': 'Manual drive / stop'},
+        ids['Plot:speed']: plot('Linear speed (m/s)', [
+            ('cmd_vel', '/cmd_vel.linear.x'), ('EKF', '/odometry/filtered.twist.twist.linear.x'),
+            ('wheel odom', '/agrobot_base_controller/odom.twist.twist.linear.x')],
+            y_min=-0.8, y_max=0.8, window=20),
+        ids['Plot:yaw']: plot('Yaw rate (rad/s)', [
+            ('cmd_vel', '/cmd_vel.angular.z'), ('IMU gyro', '/imu/data_game.angular_velocity.z'),
+            ('EKF', '/odometry/filtered.twist.twist.angular.z')],
+            y_min=-2.5, y_max=2.5, window=20),
+        ids['map:gps']: {'layer': 'map', 'zoomLevel': 18, 'followTopic': '/gps/fix',
+                         'topicColors': {'/gps/fix': '#ff5252'}, 'foxglovePanelTitle': 'GPS track'},
+    }
+    cfg.update(autonomy_panels(ids))
+    modes = split('row', ids['CallService:explore'],
+                  split('row', ids['CallService:mapping'],
+                        split('row', ids['CallService:localization'], ids['CallService:gps'], 50), 33), 25)
+    state = split('row', ids['Indicator:state'], ids['Indicator:mode'], 55)
+    control = split('column', state, split('column', modes, ids['CallService:auto_stop'], 58), 15)
+    right = split('column', control,
+                  split('column', ids['DiagnosticSummary:lifecycle'],
+                        split('column', ids['DiagnosticSummary:launch'], ids['RosOut:autonomy'], 40), 34), 22)
+    bottom = split('row', ids['Teleop:drive'],
+                   split('row', ids['Plot:speed'], split('row', ids['Plot:yaw'], ids['map:gps'], 50), 50), 18)
+    left = split('column', ids['3D:map'], bottom, 68)
+    layout = split('row', left, right, 60)
+    return {'configById': cfg, 'globalVariables': {}, 'userNodes': {},
+            'playbackConfig': {'speed': 1}, 'layout': layout}
+
+
+LAYOUTS = {'agrobot_mission_control.json': mission_control, 'agrobot_engineering.json': engineering,
+           'agrobot_autonomy.json': autonomy}
 
 
 # ----------------------------------------------------------------------------- checking

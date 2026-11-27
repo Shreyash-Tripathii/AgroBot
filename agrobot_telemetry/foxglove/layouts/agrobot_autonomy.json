@@ -1,0 +1,482 @@
+{
+  "configById": {
+    "3D!1d78dc8": {
+      "layers": {
+        "ff4a0084-7031-9a22-d9cf-3d14af485977": {
+          "layerId": "foxglove.Grid",
+          "instanceId": "ff4a0084-7031-9a22-d9cf-3d14af485977",
+          "visible": true,
+          "label": "Grid",
+          "frameLocked": true,
+          "size": 30,
+          "divisions": 30,
+          "lineWidth": 1,
+          "color": "#3a4a5c",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "51d146a5-f2e5-bec8-2581-0535ab439b1a": {
+          "layerId": "foxglove.Urdf",
+          "instanceId": "51d146a5-f2e5-bec8-2581-0535ab439b1a",
+          "visible": true,
+          "label": "AgroBot",
+          "sourceType": "topic",
+          "topic": "/robot_description",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        }
+      },
+      "cameraState": {
+        "perspective": true,
+        "distance": 16,
+        "phi": 28,
+        "thetaOffset": 0,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 2000
+      },
+      "followMode": "follow-position",
+      "followTf": "base_footprint",
+      "scene": {
+        "backgroundColor": "#12161c",
+        "enableStats": false,
+        "labelScaleFactor": 1,
+        "transforms": {
+          "showLabel": false,
+          "editable": false,
+          "axisScale": 0.2,
+          "lineWidth": 0.02
+        }
+      },
+      "topics": {
+        "/scan": {
+          "visible": true,
+          "colorMode": "flat",
+          "flatColor": "#22d3eeff",
+          "pointSize": 3,
+          "pointShape": "circle",
+          "decayTime": 0.1
+        },
+        "/map": {
+          "visible": true,
+          "colorMode": "map",
+          "alpha": 0.85,
+          "frameLocked": false
+        },
+        "/local_costmap/costmap": {
+          "visible": true,
+          "colorMode": "costmap",
+          "alpha": 0.45,
+          "frameLocked": true
+        },
+        "/global_costmap/costmap": {
+          "visible": true,
+          "colorMode": "costmap",
+          "alpha": 0.35
+        },
+        "/plan": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.06,
+          "gradient": [
+            "#00e676ff",
+            "#00e676ff"
+          ]
+        },
+        "/local_plan": {
+          "visible": true,
+          "type": "line",
+          "lineWidth": 0.05,
+          "gradient": [
+            "#ff4081ff",
+            "#ff4081ff"
+          ]
+        },
+        "/local_costmap/published_footprint": {
+          "visible": true,
+          "color": "#00e676ff"
+        },
+        "/odometry/filtered": {
+          "visible": true
+        }
+      },
+      "publish": {
+        "type": "pose",
+        "poseTopic": "/goal_pose",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26
+      },
+      "foxglovePanelTitle": "Map / costmaps / plans  (click to set goal or pose estimate)"
+    },
+    "Teleop!4aa1e74": {
+      "topic": "/cmd_vel",
+      "publishRate": 10,
+      "upButton": {
+        "field": "linear-x",
+        "value": 0.3
+      },
+      "downButton": {
+        "field": "linear-x",
+        "value": -0.3
+      },
+      "leftButton": {
+        "field": "angular-z",
+        "value": 0.8
+      },
+      "rightButton": {
+        "field": "angular-z",
+        "value": -0.8
+      },
+      "foxglovePanelTitle": "Manual drive / stop"
+    },
+    "Plot!ce4ef3e": {
+      "paths": [
+        {
+          "value": "/cmd_vel.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "cmd_vel",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/odometry/filtered.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/agrobot_base_controller/odom.twist.twist.linear.x",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "wheel odom",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 20,
+      "foxglovePanelTitle": "Linear speed (m/s)",
+      "minYValue": -0.8,
+      "maxYValue": 0.8
+    },
+    "Plot!92dda64": {
+      "paths": [
+        {
+          "value": "/cmd_vel.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "cmd_vel",
+          "color": "#4e98e2",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/imu/data_game.angular_velocity.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "IMU gyro",
+          "color": "#f5774d",
+          "lineSize": 2,
+          "showLine": true
+        },
+        {
+          "value": "/odometry/filtered.twist.twist.angular.z",
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "label": "EKF",
+          "color": "#f7df71",
+          "lineSize": 2,
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 240,
+      "followingViewWidth": 20,
+      "foxglovePanelTitle": "Yaw rate (rad/s)",
+      "minYValue": -2.5,
+      "maxYValue": 2.5
+    },
+    "map!11648e4": {
+      "layer": "map",
+      "zoomLevel": 18,
+      "followTopic": "/gps/fix",
+      "topicColors": {
+        "/gps/fix": "#ff5252"
+      },
+      "foxglovePanelTitle": "GPS track"
+    },
+    "Indicator!9ed39e2": {
+      "path": "/autonomy_manager/state.data",
+      "style": "background",
+      "fallbackColor": "#6b7280",
+      "fallbackLabel": "Autonomy: no manager",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "running",
+          "color": "#16a34a",
+          "label": "Autonomy RUNNING"
+        },
+        {
+          "operator": "=",
+          "rawValue": "starting",
+          "color": "#d97706",
+          "label": "Autonomy starting..."
+        },
+        {
+          "operator": "=",
+          "rawValue": "stopping",
+          "color": "#d97706",
+          "label": "Autonomy stopping..."
+        },
+        {
+          "operator": "=",
+          "rawValue": "stopped",
+          "color": "#6b7280",
+          "label": "Autonomy stopped"
+        },
+        {
+          "operator": "=",
+          "rawValue": "crashed",
+          "color": "#dc2626",
+          "label": "Autonomy CRASHED"
+        }
+      ],
+      "foxglovePanelTitle": "Autonomy state"
+    },
+    "Indicator!15d6171": {
+      "path": "/autonomy_manager/mode.data",
+      "style": "background",
+      "fallbackColor": "#374151",
+      "fallbackLabel": "mode: none",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "explore",
+          "color": "#2563eb",
+          "label": "mode: explore"
+        },
+        {
+          "operator": "=",
+          "rawValue": "mapping",
+          "color": "#7c3aed",
+          "label": "mode: mapping"
+        },
+        {
+          "operator": "=",
+          "rawValue": "localization",
+          "color": "#0d9488",
+          "label": "mode: localization"
+        },
+        {
+          "operator": "=",
+          "rawValue": "gps",
+          "color": "#d97706",
+          "label": "mode: gps"
+        }
+      ],
+      "foxglovePanelTitle": "Mode"
+    },
+    "DiagnosticSummary!80c2998": {
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "nav_lifecycle",
+      "topicToRender": "/diagnostics",
+      "sortByLevel": false,
+      "foxglovePanelTitle": "Node lifecycle states"
+    },
+    "DiagnosticSummary!e655785": {
+      "minLevel": 0,
+      "pinnedIds": [],
+      "hardwareIdFilter": "nav_launch",
+      "topicToRender": "/diagnostics",
+      "sortByLevel": true,
+      "foxglovePanelTitle": "Autonomy launch diagnostics"
+    },
+    "RosOut!1c0a426": {
+      "topicToRender": "/autonomy_manager/log",
+      "searchTerms": [],
+      "minLogLevel": 1,
+      "nameFilter": {},
+      "foxglovePanelTitle": "Autonomy log"
+    },
+    "CallService!972c97b": {
+      "serviceName": "/autonomy_manager/start_explore",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Explore",
+      "buttonTooltip": "Call /autonomy_manager/start_explore",
+      "buttonColor": "#2563eb",
+      "editingMode": false,
+      "foxglovePanelTitle": "Explore"
+    },
+    "CallService!f84f4a6": {
+      "serviceName": "/autonomy_manager/start_mapping",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Mapping",
+      "buttonTooltip": "Call /autonomy_manager/start_mapping",
+      "buttonColor": "#7c3aed",
+      "editingMode": false,
+      "foxglovePanelTitle": "Mapping"
+    },
+    "CallService!0662a73": {
+      "serviceName": "/autonomy_manager/start_localization",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Localization",
+      "buttonTooltip": "Call /autonomy_manager/start_localization",
+      "buttonColor": "#0d9488",
+      "editingMode": false,
+      "foxglovePanelTitle": "Localization"
+    },
+    "CallService!11648e4": {
+      "serviceName": "/autonomy_manager/start_gps",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "GPS",
+      "buttonTooltip": "Call /autonomy_manager/start_gps",
+      "buttonColor": "#d97706",
+      "editingMode": false,
+      "foxglovePanelTitle": "GPS"
+    },
+    "CallService!a9fb812": {
+      "serviceName": "/autonomy_manager/stop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Shut down autonomy",
+      "buttonTooltip": "Call /autonomy_manager/stop",
+      "buttonColor": "#b91c1c",
+      "editingMode": false,
+      "foxglovePanelTitle": "Shut down autonomy"
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "3D!1d78dc8",
+      "second": {
+        "direction": "row",
+        "first": "Teleop!4aa1e74",
+        "second": {
+          "direction": "row",
+          "first": "Plot!ce4ef3e",
+          "second": {
+            "direction": "row",
+            "first": "Plot!92dda64",
+            "second": "map!11648e4",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 50
+        },
+        "splitPercentage": 18
+      },
+      "splitPercentage": 68
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": "Indicator!9ed39e2",
+          "second": "Indicator!15d6171",
+          "splitPercentage": 55
+        },
+        "second": {
+          "direction": "column",
+          "first": {
+            "direction": "row",
+            "first": "CallService!972c97b",
+            "second": {
+              "direction": "row",
+              "first": "CallService!f84f4a6",
+              "second": {
+                "direction": "row",
+                "first": "CallService!0662a73",
+                "second": "CallService!11648e4",
+                "splitPercentage": 50
+              },
+              "splitPercentage": 33
+            },
+            "splitPercentage": 25
+          },
+          "second": "CallService!a9fb812",
+          "splitPercentage": 58
+        },
+        "splitPercentage": 15
+      },
+      "second": {
+        "direction": "column",
+        "first": "DiagnosticSummary!80c2998",
+        "second": {
+          "direction": "column",
+          "first": "DiagnosticSummary!e655785",
+          "second": "RosOut!1c0a426",
+          "splitPercentage": 40
+        },
+        "splitPercentage": 34
+      },
+      "splitPercentage": 22
+    },
+    "splitPercentage": 60
+  }
+}

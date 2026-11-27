@@ -122,49 +122,6 @@
       "minYValue": -1.7,
       "maxYValue": 1.7
     },
-    "Plot!4cc37b6": {
-      "paths": [
-        {
-          "value": "/arm_controller/controller_state.error.positions[0]",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "yaw",
-          "color": "#4e98e2",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/arm_controller/controller_state.error.positions[1]",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "shoulder",
-          "color": "#f5774d",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/arm_controller/controller_state.error.positions[2]",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "wrist",
-          "color": "#f7df71",
-          "lineSize": 2,
-          "showLine": true
-        }
-      ],
-      "showXAxisLabels": true,
-      "showYAxisLabels": true,
-      "showLegend": true,
-      "legendDisplay": "floating",
-      "showPlotValuesInLegend": false,
-      "isSynced": true,
-      "xAxisVal": "timestamp",
-      "sidebarDimension": 240,
-      "followingViewWidth": 30,
-      "foxglovePanelTitle": "Arm tracking error (rad)",
-      "minYValue": -0.2,
-      "maxYValue": 0.2
-    },
     "Plot!4c21317": {
       "paths": [
         {
@@ -359,6 +316,56 @@
       "minLogLevel": 1,
       "nameFilter": {},
       "foxglovePanelTitle": "sllidar_node log"
+    },
+    "CallService!972c97b": {
+      "serviceName": "/autonomy_manager/start_explore",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Explore",
+      "buttonTooltip": "Call /autonomy_manager/start_explore",
+      "buttonColor": "#2563eb",
+      "editingMode": false,
+      "foxglovePanelTitle": "Explore"
+    },
+    "CallService!f84f4a6": {
+      "serviceName": "/autonomy_manager/start_mapping",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Mapping",
+      "buttonTooltip": "Call /autonomy_manager/start_mapping",
+      "buttonColor": "#7c3aed",
+      "editingMode": false,
+      "foxglovePanelTitle": "Mapping"
+    },
+    "CallService!0662a73": {
+      "serviceName": "/autonomy_manager/start_localization",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Localization",
+      "buttonTooltip": "Call /autonomy_manager/start_localization",
+      "buttonColor": "#0d9488",
+      "editingMode": false,
+      "foxglovePanelTitle": "Localization"
+    },
+    "CallService!11648e4": {
+      "serviceName": "/autonomy_manager/start_gps",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "GPS",
+      "buttonTooltip": "Call /autonomy_manager/start_gps",
+      "buttonColor": "#d97706",
+      "editingMode": false,
+      "foxglovePanelTitle": "GPS"
+    },
+    "CallService!a9fb812": {
+      "serviceName": "/autonomy_manager/stop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Shut down autonomy",
+      "buttonTooltip": "Call /autonomy_manager/stop",
+      "buttonColor": "#b91c1c",
+      "editingMode": false,
+      "foxglovePanelTitle": "Shut down autonomy"
     }
   },
   "globalVariables": {},
@@ -374,7 +381,27 @@
       "second": {
         "direction": "row",
         "first": "Plot!ba12e69",
-        "second": "Plot!4cc37b6",
+        "second": {
+          "direction": "column",
+          "first": {
+            "direction": "row",
+            "first": "CallService!972c97b",
+            "second": "CallService!f84f4a6",
+            "splitPercentage": 50
+          },
+          "second": {
+            "direction": "column",
+            "first": {
+              "direction": "row",
+              "first": "CallService!0662a73",
+              "second": "CallService!11648e4",
+              "splitPercentage": 50
+            },
+            "second": "CallService!a9fb812",
+            "splitPercentage": 50
+          },
+          "splitPercentage": 34
+        },
         "splitPercentage": 50
       },
       "splitPercentage": 33

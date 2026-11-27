@@ -28,6 +28,17 @@ Studio use the *Layouts* menu (top right) → *Import from file…* and pick one
   the TF tree (two cells wide), a robot-only 3D view that follows `/joint_states`, and a **LiDAR
   control window** (below).
 
+### Autonomy control (Engineering layout, middle right; also `agrobot_autonomy.json`)
+
+`autonomy_manager` (started by `foxglove.launch.py`, `autonomy_manager:=false` to skip) runs
+`agrobot_navigation/autonomy.launch.py` for you. Buttons: **Explore** (mapping + frontier explorer),
+**Mapping**, **Localization**, **GPS**, and **Shut down autonomy** (Ctrl-C, so mapping still saves its
+map; a button for another mode first shuts the running one down). Panels: state + mode indicators, the
+lifecycle state of every lifecycle node it started (`active` green, `inactive` / `unconfigured` yellow,
+missing red), diagnostics of the whole launch (one entry per node, plus the launch itself) and its live
+log. Services: `/autonomy_manager/{start_explore,start_mapping,start_localization,start_gps,stop}`;
+parameters `map_name`, `extra_args` (e.g. `use_emra:=true`), `sim`.
+
 ### LiDAR control (Engineering layout, bottom right)
 
 `telemetry.launch.py` (2nd RPi) runs `lidar_manager`, which owns `sllidar_node`: status indicator
