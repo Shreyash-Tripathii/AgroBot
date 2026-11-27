@@ -1,0 +1,43 @@
+# Reference EMRA planner block (the live copy is in agrobot_navigation/config/nav2_params.yaml).
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased", "NavFnBackup"]
+    GridBased:
+      plugin: "agrobot_emra_planner::EmraPlanner"
+      # ---- safety (hard guarantee) ----
+      safe_radius: 0.17            # m. circumscribed radius of the chassis (half-diagonal 0.16) + 1 cm. Raise if the arm overhangs.
+      start_escape_dist: 0.5       # m. relaxed clearance near the start so the robot can leave a wall it is already close to
+      goal_tolerance: 0.3          # m. goal is moved to the nearest safe point within this radius if it is too close to a wall
+      allow_unknown: false         # never plan through unknown cells
+      # ---- search region ----
+      corridor_margin: 3.0         # m of costmap copied around the start/goal bounding box (falls back to the whole map)
+      # ---- EMRA (Ali & Ameen 2025) ----
+      population_size: 30
+      max_iterations: 150          # T_max
+      stall_iterations: 40
+      max_planning_time: 1.0       # s. hard budget; T_max is shrunk adaptively so the schedule completes inside it
+      adaptive_iterations: true
+      num_threads: 2               # RPi 4: 2 is a good trade-off
+      random_seed: 0               # 0 = random; set >0 for reproducible plans
+      greedy_selection: true
+      # ---- path encoding ----
+      control_spacing: 0.75        # m between B-spline control points
+      max_control_points: 24
+      search_radius: 1.0           # m max displacement of a control point from the seed
+      interpolation_resolution: 0.0  # 0 = costmap resolution
+      # ---- objective ----
+      w_length: 1.0
+      w_smoothness: 0.1
+      w_clearance: 0.5
+      w_cost: 0.2
+      desired_extra_clearance: 0.25
+      optimizer_margin: 0.03
+      seed_timeout: 1.0
+      seed_clearance_weight: 4.0
+      publish_debug: true
+    NavFnBackup:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: false

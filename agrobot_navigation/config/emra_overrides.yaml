@@ -1,0 +1,55 @@
+# Applied ON TOP of nav2_params.yaml only when autonomy.launch.py is run with use_emra:=true.
+# Without it the stock Nav2 setup in nav2_params.yaml (NavFn + default BT + 0.11 m circle) is used unchanged.
+planner_server:
+  ros__parameters:
+    # EMRA is event-driven (see agrobot_emra_planner/behavior_trees), not a 20 Hz planner.
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased", "NavFnBackup"]
+    GridBased:
+      plugin: "agrobot_emra_planner::EmraPlanner"
+      # Hard safety: every path sample keeps >= safe_radius from any lethal/unknown cell (exact check).
+      safe_radius: 0.17            # chassis half-diagonal 0.16 m + 1 cm. Raise if the arm overhangs.
+      start_escape_dist: 0.5
+      goal_tolerance: 0.3
+      allow_unknown: false
+      corridor_margin: 3.0
+      # EMRA (Ali & Ameen 2025)
+      population_size: 30
+      max_iterations: 150
+      stall_iterations: 40
+      max_planning_time: 1.0
+      adaptive_iterations: true
+      num_threads: 2
+      random_seed: 0
+      greedy_selection: true
+      # path encoding / objective
+      control_spacing: 0.75
+      max_control_points: 24
+      search_radius: 1.0
+      w_length: 1.0
+      w_smoothness: 0.1
+      w_clearance: 0.5
+      w_cost: 0.2
+      desired_extra_clearance: 0.25
+      publish_debug: true
+    NavFnBackup:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: false
+
+bt_navigator:
+  ros__parameters:
+    # Custom BT plugins are ADDED to Nav2's default list. The BT XML paths are injected by the launch file.
+    plugin_lib_names: ["agrobot_is_path_deviated_condition_bt_node"]
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      # Chassis polygon (0.245 x 0.205 m body) so DWB keeps real chassis clearance, not just a 0.11 m circle.
+      # (footprint takes precedence over robot_radius in nav2_params.yaml)
+      footprint: "[[0.1225, 0.1025], [0.1225, -0.1025], [-0.1225, -0.1025], [-0.1225, 0.1025]]"
+      footprint_padding: 0.01
+      inflation_layer:
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.35

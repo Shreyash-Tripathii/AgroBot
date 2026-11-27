@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>agrobot_emra_planner</name>
+  <version>0.1.0</version>
+  <description>
+    Nav2 global planner plugin based on the Enhanced Mud Ring Algorithm (EMRA, Ali &amp; Ameen 2025),
+    with a hard collision-free guarantee, plus event-driven replanning behavior trees.
+  </description>
+  <maintainer email="shreyash5600@gmail.com">shreyash-tripathi</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>nav2_core</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>nav2_util</depend>
+  <depend>nav2_behavior_tree</depend>
+  <depend>behaviortree_cpp</depend>
+  <depend>pluginlib</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <exec_depend>nav2_navfn_planner</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
