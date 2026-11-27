@@ -49,6 +49,9 @@ TOPIC_TYPES = {
     '/local_plan': 'nav_msgs/msg/Path',
     '/local_costmap/published_footprint': 'geometry_msgs/msg/PolygonStamped',
     '/robot_description': 'std_msgs/msg/String',
+    '/lidar_manager/state': 'std_msgs/msg/String',
+    '/lidar_manager/status': 'std_msgs/msg/String',
+    '/lidar_manager/log': 'rcl_interfaces/msg/Log',
 }
 PALETTE = ['#4e98e2', '#f5774d', '#f7df71', '#5cd6a9', '#cb7de8', '#e86a8c']
 
@@ -172,10 +175,27 @@ def mission_control():
             'playbackConfig': {'speed': 1}, 'layout': layout}
 
 
+def panel_3d_robot():
+    """Robot model only: grid + URDF; the joints follow /joint_states through robot_state_publisher."""
+    cfg = panel_3d()
+    cfg['topics'] = {}
+    cfg.pop('publish', None)
+    cfg['cameraState'].update({'distance': 1.4, 'phi': 65, 'thetaOffset': 140})
+    cfg['foxglovePanelTitle'] = 'Robot joints (3D)'
+    return cfg
+
+
+def call_service(title, service, color):
+    return {'serviceName': service, 'requestPayload': '{}', 'layout': 'vertical', 'buttonText': title,
+            'buttonTooltip': f'Call {service}', 'buttonColor': color, 'editingMode': False,
+            'foxglovePanelTitle': title}
+
+
 def engineering():
     ids = {k: pid(*k.split(':')) for k in (
-        'Plot:wheels', 'Plot:armpos', 'Plot:armerr', 'Plot:gyro', 'Plot:accel', 'Plot:odom',
-        'Plot:system', 'DiagnosticSummary:diag', 'map:gps')}
+        'Plot:wheels', 'Plot:armpos', 'Plot:armerr', 'Plot:odom', 'TransformTree:tf', '3D:robot',
+        'DiagnosticStatusPanel:lidar', 'Indicator:lidar', 'CallService:start', 'CallService:restart',
+        'CallService:stop', 'RosOut:lidar')}
     cfg = {
         ids['Plot:wheels']: plot('Wheel velocity (rad/s)', [
             (n, f'/telemetry/wheel_velocity.data[{i}]') for i, n in enumerate(['FL', 'FR', 'RL', 'RR'])],
@@ -193,29 +213,37 @@ def engineering():
             ('shoulder', '/arm_controller/controller_state.error.positions[1]'),
             ('wrist', '/arm_controller/controller_state.error.positions[2]')],
             y_min=-0.2, y_max=0.2),
-        ids['Plot:gyro']: plot('IMU gyro (rad/s)', [
-            ('x', '/imu/data_game.angular_velocity.x'), ('y', '/imu/data_game.angular_velocity.y'),
-            ('z', '/imu/data_game.angular_velocity.z')],
-            y_min=-3, y_max=3),
-        ids['Plot:accel']: plot('IMU accel (m/s^2)', [
-            ('x', '/imu/data_game.linear_acceleration.x'), ('y', '/imu/data_game.linear_acceleration.y'),
-            ('z', '/imu/data_game.linear_acceleration.z')],
-            y_min=-12, y_max=12),
         ids['Plot:odom']: plot('EKF position (m)', [
             ('x', '/odometry/filtered.pose.pose.position.x'),
             ('y', '/odometry/filtered.pose.pose.position.y')], window=120),
-        ids['Plot:system']: plot('System', [
-            ('CPU %', '/telemetry/cpu_percent.data'), ('memory %', '/telemetry/mem_percent.data'),
-            ('CPU temp C', '/telemetry/cpu_temp_c.data')], y_min=0, y_max=100, window=120),
-        ids['DiagnosticSummary:diag']: {'minLevel': 0, 'pinnedIds': [], 'hardwareIdFilter': '',
-                                        'topicToRender': '/diagnostics', 'sortByLevel': True,
-                                        'foxglovePanelTitle': 'Health'},
-        ids['map:gps']: {'layer': 'map', 'zoomLevel': 18, 'followTopic': '/gps/fix',
-                         'topicColors': {'/gps/fix': '#ff5252'}, 'foxglovePanelTitle': 'GPS'},
+        ids['TransformTree:tf']: {'foxglovePanelTitle': 'TF tree'},
+        ids['3D:robot']: panel_3d_robot(),
+        ids['DiagnosticStatusPanel:lidar']: {
+            'topicToRender': '/diagnostics', 'selectedHardwareId': 'lidar', 'selectedName': 'LiDAR driver',
+            'splitFraction': 0.4, 'numericPrecision': 0, 'sortByLevel': True,
+            'foxglovePanelTitle': 'LiDAR driver (sllidar_node)'},
+        ids['Indicator:lidar']: {
+            'path': '/lidar_manager/state.data', 'style': 'background', 'fallbackColor': '#6b7280',
+            'fallbackLabel': 'LiDAR: no manager', 'rules': [
+                {'operator': '=', 'rawValue': 'running', 'color': '#16a34a', 'label': 'LiDAR running'},
+                {'operator': '=', 'rawValue': 'starting', 'color': '#d97706', 'label': 'LiDAR starting...'},
+                {'operator': '=', 'rawValue': 'stopped', 'color': '#6b7280', 'label': 'LiDAR stopped'},
+                {'operator': '=', 'rawValue': 'crashed', 'color': '#dc2626', 'label': 'LiDAR CRASHED'}],
+            'foxglovePanelTitle': 'LiDAR state'},
+        ids['CallService:start']: call_service('Start', '/lidar_manager/start', '#16a34a'),
+        ids['CallService:restart']: call_service('Relaunch', '/lidar_manager/restart', '#2563eb'),
+        ids['CallService:stop']: call_service('Stop', '/lidar_manager/stop', '#b91c1c'),
+        ids['RosOut:lidar']: {'topicToRender': '/lidar_manager/log', 'searchTerms': [], 'minLogLevel': 1,
+                              'nameFilter': {}, 'foxglovePanelTitle': 'sllidar_node log'},
     }
     row1 = split('row', ids['Plot:wheels'], split('row', ids['Plot:armpos'], ids['Plot:armerr'], 50), 33)
-    row2 = split('row', ids['Plot:gyro'], split('row', ids['Plot:accel'], ids['Plot:odom'], 50), 33)
-    row3 = split('row', ids['Plot:system'], split('row', ids['DiagnosticSummary:diag'], ids['map:gps'], 50), 33)
+    # TF tree spans two cells (where the two IMU plots were); EKF position stays in the third
+    row2 = split('row', ids['TransformTree:tf'], ids['Plot:odom'], 66)
+    buttons = split('row', ids['Indicator:lidar'],
+                    split('row', ids['CallService:start'],
+                          split('row', ids['CallService:restart'], ids['CallService:stop'], 50), 33), 34)
+    lidar = split('column', buttons, ids['RosOut:lidar'], 30)
+    row3 = split('row', ids['3D:robot'], split('row', ids['DiagnosticStatusPanel:lidar'], lidar, 32), 28)
     layout = split('column', row1, split('column', row2, row3, 50), 33)
     return {'configById': cfg, 'globalVariables': {}, 'userNodes': {},
             'playbackConfig': {'speed': 1}, 'layout': layout}
@@ -243,7 +271,7 @@ def collect_paths(layout):
         for t in cfg.get('topics', {}):
             yield pid_, 'topic', t
         if kind == 'RosOut':
-            yield pid_, 'topic', '/rosout'
+            yield pid_, 'topic', cfg.get('topicToRender', '/rosout')
         if kind == '3D':
             for key in ('poseTopic', 'pointTopic', 'poseEstimateTopic'):
                 pass

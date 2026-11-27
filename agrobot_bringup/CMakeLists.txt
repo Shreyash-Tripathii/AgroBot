@@ -23,6 +23,8 @@ install(DIRECTORY
 # Install Python nodes
 install(PROGRAMS
   scripts/click_goal.py
+  scripts/lidar_wake.py
+  scripts/lidar_manager.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

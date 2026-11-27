@@ -24,8 +24,18 @@ Studio use the *Layouts* menu (top right) → *Import from file…* and pick one
 * `agrobot_mission_control.json` — one dashboard: 3D (robot, map, costmap, scan, plans; click to set
   goals / initial pose), Drive pad (publishes `/cmd_vel`), speed and yaw-rate plots (command vs
   measured), Health (diagnostics), the arm camera and, below it, the **Arm Planner** panel (see below).
-* `agrobot_engineering.json` — tuning: wheel velocities, arm feedback/reference/error, IMU gyro and
-  accel, EKF position, CPU/memory/temperature, Health, GPS map.
+* `agrobot_engineering.json` — tuning: wheel velocities, arm feedback/reference/error, EKF position,
+  the TF tree (two cells wide), a robot-only 3D view that follows `/joint_states`, and a **LiDAR
+  control window** (below).
+
+### LiDAR control (Engineering layout, bottom right)
+
+`telemetry.launch.py` (2nd RPi) runs `lidar_manager`, which owns `sllidar_node`: status indicator
+(running / starting / stopped / CRASHED), the "LiDAR driver" diagnostic (port, pid, uptime, restarts,
+last exit code, last error line), the driver's live log (including what it prints while crashing, which
+never reaches `/rosout`) and **Start / Relaunch / Stop** buttons (services `/lidar_manager/{start,restart,stop}`).
+After a crash it restarts the driver by itself up to 5 times in a row, then waits for the button
+(`lidar_auto_restart:=false` to always wait). Stop is final until you press Start.
 
 ### Arm Planner panel (MoveIt-style, custom extension)
 

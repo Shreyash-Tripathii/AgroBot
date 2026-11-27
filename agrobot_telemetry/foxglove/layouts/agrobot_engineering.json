@@ -165,92 +165,6 @@
       "minYValue": -0.2,
       "maxYValue": 0.2
     },
-    "Plot!41e1db5": {
-      "paths": [
-        {
-          "value": "/imu/data_game.angular_velocity.x",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "x",
-          "color": "#4e98e2",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/imu/data_game.angular_velocity.y",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "y",
-          "color": "#f5774d",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/imu/data_game.angular_velocity.z",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "z",
-          "color": "#f7df71",
-          "lineSize": 2,
-          "showLine": true
-        }
-      ],
-      "showXAxisLabels": true,
-      "showYAxisLabels": true,
-      "showLegend": true,
-      "legendDisplay": "floating",
-      "showPlotValuesInLegend": false,
-      "isSynced": true,
-      "xAxisVal": "timestamp",
-      "sidebarDimension": 240,
-      "followingViewWidth": 30,
-      "foxglovePanelTitle": "IMU gyro (rad/s)",
-      "minYValue": -3,
-      "maxYValue": 3
-    },
-    "Plot!9830996": {
-      "paths": [
-        {
-          "value": "/imu/data_game.linear_acceleration.x",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "x",
-          "color": "#4e98e2",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/imu/data_game.linear_acceleration.y",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "y",
-          "color": "#f5774d",
-          "lineSize": 2,
-          "showLine": true
-        },
-        {
-          "value": "/imu/data_game.linear_acceleration.z",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "z",
-          "color": "#f7df71",
-          "lineSize": 2,
-          "showLine": true
-        }
-      ],
-      "showXAxisLabels": true,
-      "showYAxisLabels": true,
-      "showLegend": true,
-      "legendDisplay": "floating",
-      "showPlotValuesInLegend": false,
-      "isSynced": true,
-      "xAxisVal": "timestamp",
-      "sidebarDimension": 240,
-      "followingViewWidth": 30,
-      "foxglovePanelTitle": "IMU accel (m/s^2)",
-      "minYValue": -12,
-      "maxYValue": 12
-    },
     "Plot!4c21317": {
       "paths": [
         {
@@ -283,65 +197,168 @@
       "followingViewWidth": 120,
       "foxglovePanelTitle": "EKF position (m)"
     },
-    "Plot!54b5307": {
-      "paths": [
+    "TransformTree!114d6a4": {
+      "foxglovePanelTitle": "TF tree"
+    },
+    "3D!87b7cb7": {
+      "layers": {
+        "ff4a0084-7031-9a22-d9cf-3d14af485977": {
+          "layerId": "foxglove.Grid",
+          "instanceId": "ff4a0084-7031-9a22-d9cf-3d14af485977",
+          "visible": true,
+          "label": "Grid",
+          "frameLocked": true,
+          "size": 30,
+          "divisions": 30,
+          "lineWidth": 1,
+          "color": "#3a4a5c",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "51d146a5-f2e5-bec8-2581-0535ab439b1a": {
+          "layerId": "foxglove.Urdf",
+          "instanceId": "51d146a5-f2e5-bec8-2581-0535ab439b1a",
+          "visible": true,
+          "label": "AgroBot",
+          "sourceType": "topic",
+          "topic": "/robot_description",
+          "url": "",
+          "filePath": "",
+          "parameter": "",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#ffffff",
+          "order": 2
+        }
+      },
+      "cameraState": {
+        "perspective": true,
+        "distance": 1.4,
+        "phi": 65,
+        "thetaOffset": 140,
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.01,
+        "far": 2000
+      },
+      "followMode": "follow-position",
+      "followTf": "base_footprint",
+      "scene": {
+        "backgroundColor": "#12161c",
+        "enableStats": false,
+        "labelScaleFactor": 1,
+        "transforms": {
+          "showLabel": false,
+          "editable": false,
+          "axisScale": 0.2,
+          "lineWidth": 0.02
+        }
+      },
+      "topics": {},
+      "foxglovePanelTitle": "Robot joints (3D)"
+    },
+    "DiagnosticStatusPanel!ff5fc8b": {
+      "topicToRender": "/diagnostics",
+      "selectedHardwareId": "lidar",
+      "selectedName": "LiDAR driver",
+      "splitFraction": 0.4,
+      "numericPrecision": 0,
+      "sortByLevel": true,
+      "foxglovePanelTitle": "LiDAR driver (sllidar_node)"
+    },
+    "Indicator!ff5fc8b": {
+      "path": "/lidar_manager/state.data",
+      "style": "background",
+      "fallbackColor": "#6b7280",
+      "fallbackLabel": "LiDAR: no manager",
+      "rules": [
         {
-          "value": "/telemetry/cpu_percent.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "CPU %",
-          "color": "#4e98e2",
-          "lineSize": 2,
-          "showLine": true
+          "operator": "=",
+          "rawValue": "running",
+          "color": "#16a34a",
+          "label": "LiDAR running"
         },
         {
-          "value": "/telemetry/mem_percent.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "memory %",
-          "color": "#f5774d",
-          "lineSize": 2,
-          "showLine": true
+          "operator": "=",
+          "rawValue": "starting",
+          "color": "#d97706",
+          "label": "LiDAR starting..."
         },
         {
-          "value": "/telemetry/cpu_temp_c.data",
-          "enabled": true,
-          "timestampMethod": "receiveTime",
-          "label": "CPU temp C",
-          "color": "#f7df71",
-          "lineSize": 2,
-          "showLine": true
+          "operator": "=",
+          "rawValue": "stopped",
+          "color": "#6b7280",
+          "label": "LiDAR stopped"
+        },
+        {
+          "operator": "=",
+          "rawValue": "crashed",
+          "color": "#dc2626",
+          "label": "LiDAR CRASHED"
         }
       ],
-      "showXAxisLabels": true,
-      "showYAxisLabels": true,
-      "showLegend": true,
-      "legendDisplay": "floating",
-      "showPlotValuesInLegend": false,
-      "isSynced": true,
-      "xAxisVal": "timestamp",
-      "sidebarDimension": 240,
-      "followingViewWidth": 120,
-      "foxglovePanelTitle": "System",
-      "minYValue": 0,
-      "maxYValue": 100
+      "foxglovePanelTitle": "LiDAR state"
     },
-    "DiagnosticSummary!776e6c3": {
-      "minLevel": 0,
-      "pinnedIds": [],
-      "hardwareIdFilter": "",
-      "topicToRender": "/diagnostics",
-      "sortByLevel": true,
-      "foxglovePanelTitle": "Health"
+    "CallService!ea2b267": {
+      "serviceName": "/lidar_manager/start",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Start",
+      "buttonTooltip": "Call /lidar_manager/start",
+      "buttonColor": "#16a34a",
+      "editingMode": false,
+      "foxglovePanelTitle": "Start"
     },
-    "map!11648e4": {
-      "layer": "map",
-      "zoomLevel": 18,
-      "followTopic": "/gps/fix",
-      "topicColors": {
-        "/gps/fix": "#ff5252"
-      },
-      "foxglovePanelTitle": "GPS"
+    "CallService!8a7ef1c": {
+      "serviceName": "/lidar_manager/restart",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Relaunch",
+      "buttonTooltip": "Call /lidar_manager/restart",
+      "buttonColor": "#2563eb",
+      "editingMode": false,
+      "foxglovePanelTitle": "Relaunch"
+    },
+    "CallService!ef399b2": {
+      "serviceName": "/lidar_manager/stop",
+      "requestPayload": "{}",
+      "layout": "vertical",
+      "buttonText": "Stop",
+      "buttonTooltip": "Call /lidar_manager/stop",
+      "buttonColor": "#b91c1c",
+      "editingMode": false,
+      "foxglovePanelTitle": "Stop"
+    },
+    "RosOut!ff5fc8b": {
+      "topicToRender": "/lidar_manager/log",
+      "searchTerms": [],
+      "minLogLevel": 1,
+      "nameFilter": {},
+      "foxglovePanelTitle": "sllidar_node log"
     }
   },
   "globalVariables": {},
@@ -366,25 +383,40 @@
       "direction": "column",
       "first": {
         "direction": "row",
-        "first": "Plot!41e1db5",
-        "second": {
-          "direction": "row",
-          "first": "Plot!9830996",
-          "second": "Plot!4c21317",
-          "splitPercentage": 50
-        },
-        "splitPercentage": 33
+        "first": "TransformTree!114d6a4",
+        "second": "Plot!4c21317",
+        "splitPercentage": 66
       },
       "second": {
         "direction": "row",
-        "first": "Plot!54b5307",
+        "first": "3D!87b7cb7",
         "second": {
           "direction": "row",
-          "first": "DiagnosticSummary!776e6c3",
-          "second": "map!11648e4",
-          "splitPercentage": 50
+          "first": "DiagnosticStatusPanel!ff5fc8b",
+          "second": {
+            "direction": "column",
+            "first": {
+              "direction": "row",
+              "first": "Indicator!ff5fc8b",
+              "second": {
+                "direction": "row",
+                "first": "CallService!ea2b267",
+                "second": {
+                  "direction": "row",
+                  "first": "CallService!8a7ef1c",
+                  "second": "CallService!ef399b2",
+                  "splitPercentage": 50
+                },
+                "splitPercentage": 33
+              },
+              "splitPercentage": 34
+            },
+            "second": "RosOut!ff5fc8b",
+            "splitPercentage": 30
+          },
+          "splitPercentage": 32
         },
-        "splitPercentage": 33
+        "splitPercentage": 28
       },
       "splitPercentage": 50
     },

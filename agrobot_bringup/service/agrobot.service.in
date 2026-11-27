@@ -1,5 +1,5 @@
 [Unit]
-Description=AgroBot hardware (ros2_control, ESP32, IMU, controllers, EKF, MoveIt)
+Description=@DESC@
 After=network-online.target systemd-udevd.service
 Wants=network-online.target
 StartLimitIntervalSec=0
