@@ -1,0 +1,22 @@
+[Unit]
+Description=AgroBot hardware (ros2_control, ESP32, IMU, controllers, EKF, MoveIt)
+After=network-online.target systemd-udevd.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@HOME@
+Environment=AGROBOT_WS=@WS@
+ExecStart=@RUN@
+# ctrl-C semantics: lets the launch stop the controllers, so the ESP32 gets a zero command
+KillSignal=SIGINT
+KillMode=mixed
+TimeoutStopSec=20
+# restart on any crash, forever (the launch itself waits for the ESP32 port)
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
