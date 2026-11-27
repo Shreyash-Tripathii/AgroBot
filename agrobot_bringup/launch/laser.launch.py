@@ -1,81 +1,50 @@
 #!/usr/bin/env python3
 """
-Auto-detect the RPLidar A1M8 among /dev/ttyUSB* ports (by protocol handshake, not by
-USB port path) and launch sllidar_node on it. Lidar only: the ESP32 port is handled by
-hardware.launch.py on the robot RPi, so this file has no ESP32 logic.
+RPLidar A1M8 launch (sllidar_ros2) + arm filter.
 
-How: for every /dev/ttyUSB*, open at 115200, send RPLidar STOP + GET_INFO and
-look for the RPLidar response descriptor (A5 5A 14 00 00 00 04). Only a real
-RPLidar answers that. Every other port is treated as "not the lidar".
+The lidar port is the /dev/ttyUSB* whose USB vendor is Silicon Labs (10c4, the CP210x bridge of the
+RPLidar adapter board). Nothing is opened or probed: only the USB descriptors in sysfs are read, so no
+other device (e.g. the ESP32 on the other RPi) is touched and the lidar sees no extra traffic.
 
-Requires: python3-serial (sudo apt install python3-serial), user in `dialout`,
-          sllidar_ros2 (Slamtec, built in your workspace)
-Usage:    ros2 launch <your_pkg> rplidar_autodetect.launch.py
+Usage:    ros2 launch agrobot_bringup laser.launch.py
+Requires: sllidar_ros2 (Slamtec, built in your workspace), laser_filters
 """
 import glob
 import os
 import time
 
-import serial
 from launch import LaunchDescription
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-STOP_CMD = b"\xA5\x25"
-GET_INFO_CMD = b"\xA5\x50"
-INFO_DESCRIPTOR = b"\xA5\x5A\x14\x00\x00\x00\x04"
+CP210X_VENDOR = "10c4"
 
 
-def probe_rplidar(port: str, baud: int, window: float = 0.8) -> bool:
-    """Return True if `port` answers the RPLidar GET_INFO handshake."""
-    ser = serial.Serial()
-    ser.port = port
-    ser.baudrate = baud
-    ser.timeout = 0.1
-    ser.write_timeout = 0.5
-    ser.exclusive = True       # skip ports already held by another process
-    ser.dtr = False            # don't toggle auto-reset lines on the ESP32
-    ser.rts = False
-    try:
-        ser.open()
-        ser.reset_input_buffer()
-        ser.write(STOP_CMD)    # in case the lidar is already scanning
-        time.sleep(0.05)
-        ser.reset_input_buffer()
-        ser.write(GET_INFO_CMD)
-
-        buf = b""
-        deadline = time.monotonic() + window
-        while time.monotonic() < deadline:
-            buf += ser.read(64)
-            if INFO_DESCRIPTOR in buf:
-                return True
-            if len(buf) > 2048:   # chatty device (e.g. ESP32 logs) -> not a lidar
-                buf = buf[-64:]
-        return False
-    except (serial.SerialException, OSError):
-        return False
-    finally:
-        if ser.is_open:
-            ser.close()
+def usb_vendor(tty: str):
+    """USB idVendor of /dev/<tty> from sysfs (walks up from the tty device to the USB device)."""
+    path = os.path.realpath(f"/sys/class/tty/{tty}/device")
+    while path and path != "/":
+        f = os.path.join(path, "idVendor")
+        if os.path.isfile(f):
+            with open(f) as fh:
+                return fh.read().strip().lower()
+        path = os.path.dirname(path)
+    return None
 
 
 def find_rplidar(baud: int, timeout: float):
-    """Poll until the lidar is found or `timeout` seconds pass.
-    Returns (lidar_port | None, [other_ports])."""
+    """Poll until a CP210x /dev/ttyUSB* shows up or `timeout` seconds pass.
+    Returns (port | None, [other ttyUSB ports])."""
     deadline = time.monotonic() + timeout
-    others = []
     while True:
         ports = sorted(glob.glob("/dev/ttyUSB*"))
-        others = []
         for p in ports:
-            if probe_rplidar(p, baud):
+            if usb_vendor(os.path.basename(p)) == CP210X_VENDOR:
                 return p, [q for q in ports if q != p]
-            others.append(p)
         if time.monotonic() >= deadline:
-            return None, others
+            return None, ports
         time.sleep(0.5)    # devices may still be enumerating at boot
 
 
@@ -89,7 +58,7 @@ def launch_setup(context, *args, **kwargs):
     if lidar_port is None:
         return [
             LogInfo(msg=(
-                f"[rplidar_autodetect] WARNING: RPLidar not found on any /dev/ttyUSB* "
+                f"[rplidar_autodetect] WARNING: No CP210x (Silicon Labs) /dev/ttyUSB* found "
                 f"after {timeout:.0f}s (checked: {others or 'no ttyUSB devices'}). "
                 "Not launching sllidar_node. Check wiring/power, `dialout` group "
                 "membership, and that no other process holds the port.")),

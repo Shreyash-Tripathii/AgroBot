@@ -11,8 +11,8 @@ DDS discovery is limited to the RPis, so the laptop never joins the ROS graph: i
 Foxglove Studio websocket to  ws://<this-rpi>:8765 . Everything the Arm Planner panel needs is
 therefore started here:
 
-  lidar_manager (+ arm filter)  owns sllidar_node: /lidar_manager/{start,stop,restart,status,log}, so the
-                                lidar can be stopped / relaunched and its logs read from Foxglove;
+  lidar_manager                 runs laser.launch.py (sllidar_node + arm filter): /lidar_manager/{start,stop,restart,status,log}, so the
+                                lidar launch can be stopped / relaunched and its logs read from Foxglove;
                                 /scan_raw -> /scan
   foxglove_bridge               websocket 8765, topics / TF / services / client publishing
   arm_commander                 /arm_commander/{plan,execute,stop,status}, wraps MoveIt's
@@ -59,11 +59,6 @@ def generate_launch_description():
     lc = LaunchConfiguration
     return LaunchDescription([
         DeclareLaunchArgument('lidar', default_value='true', description='Launch the RPLidar (+ arm filter)'),
-        DeclareLaunchArgument('lidar_auto_restart', default_value='true',
-                              description='Restart sllidar_node by itself after a crash (max 5 in a row, '
-                                          'then wait for the Foxglove button)'),
-        DeclareLaunchArgument('filter_arm', default_value='true',
-                              description='Mask the camera arm out of the scan (/scan_raw -> /scan)'),
         DeclareLaunchArgument('port', default_value='8765', description='Foxglove websocket port'),
         DeclareLaunchArgument('address', default_value='0.0.0.0',
                               description='Foxglove bridge listen address (reachable from the laptop)'),
@@ -77,17 +72,9 @@ def generate_launch_description():
         DeclareLaunchArgument('map_name', default_value='',
                               description='Map name for mapping (save) / localization (load); empty = auto'),
 
-        Node(package='agrobot_bringup', executable='lidar_manager.py', name='lidar_manager', output='log',
-             parameters=[{'scan_topic': 'scan_raw',
-                          'autostart': True,
-                          'auto_restart': ParameterValue(lc('lidar_auto_restart'), value_type=bool)}],
+        Node(package='agrobot_bringup', executable='lidar_manager.py', name='lidar_manager', output='screen',
+             parameters=[{'autostart': True}],
              condition=IfCondition(lc('lidar'))),
-        Node(package='laser_filters', executable='scan_to_scan_filter_chain',
-             name='scan_to_scan_filter_chain', output='log',
-             parameters=[os.path.join(get_package_share_directory('agrobot_bringup'), 'config',
-                                      'laser_filter.yaml')],
-             remappings=[('scan', 'scan_raw'), ('scan_filtered', 'scan')],
-             condition=IfCondition(lc('filter_arm'))),
         _include('agrobot_telemetry', 'foxglove.launch.py', {
             'port': lc('port'), 'address': lc('address'),
             'arm_commander': lc('arm_commander'), 'monitor': lc('monitor')}),

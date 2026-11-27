@@ -37,6 +37,7 @@ def generate_launch_description():
             'address': LaunchConfiguration('address'),
             'use_sim_time': sim,
             'send_buffer_limit': 200000000,   # large latched maps / images
+            'max_qos_depth': 500,             # keep the lidar log history (/lidar_manager/log)
         }],
     )
 
